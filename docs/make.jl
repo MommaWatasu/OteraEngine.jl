@@ -1,4 +1,5 @@
-using Jinja
+include("../src/Jinja.jl")
+using .Jinja
 using Documenter
 
 makedocs(;
