@@ -8,7 +8,7 @@ jobs:
     strategy:
       matrix:
         julia-version: ['1.0', '1.5', 'nightly']
-    name: build Jinja.jl
+    name: Build Jinja.jl
     steps:
       - uses: actions/checkout@v2
       - uses: julia-actions/setup-julia@v1
@@ -18,3 +18,17 @@ jobs:
       - uses: julia-actions/julia-runtest@v1
       - run: julia -e 'ENV["COVERALLS_TOKEN"]="9GUMuQ71RVYlffdWEEMQHLAGVVwbCuN14"; using Pkg; Pkg.add("Coverage"); using Coverage; Coveralls.submit_local(Coveralls.process_folder())'
       - run: julia -e 'ENV["CODECOV_TOKEN"]="aaeb3d81-aded-4899-904b-cb507656d0c2"; using Coverage; Codecov.submit_local(Codecov.process_folder())'
+  Docs:
+    runs-on: ubuntu-latest
+    name: Make Docs
+    steps:
+    - run: |
+	julia -e 'using Pkg; Pkg.add("Documenter")'
+        cd ./docs
+	julia make.jl
+	mv build docs
+	cd ../
+	git config --local user.email ascendwatson@gamil.com
+	git config --local user.name QGMW22
+	git add .
+	git commit -m "Make docs"
