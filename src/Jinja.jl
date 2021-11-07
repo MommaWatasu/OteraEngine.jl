@@ -10,7 +10,7 @@ This structure has 2 parameter,
 - `path` determines whether the parameter `html` represents the file path. The default value is `true`.
 
 # HTML
-You can write the code of Template in JuliaLang because of Julia's meta programming function.
+You can write the code of Template in JuliaLang, and just write the variables you want to output to a HTML at the end of the code.
 The code needs to be enclosed by ```.
 
 For exmaple, this HTML work:
@@ -25,9 +25,11 @@ For exmaple, this HTML work:
 
 # Rendering
 After you create a Template, you just have to execute the codes! For this, you use the Function-like Object of Template structure.
-variables are initialized by `init`(`init` is the parameter for Function-like Object). `init` must be `Expr`type, please see the example below.
+    tmp(; init::Expr)
+variables are initialized by `init`(`init` is the parameter for Function-like Object). `init` must be `Expr`type. If you don't pass the `init`, the initialization won't be done.
+Please see the example below.
 
-#Example
+# Example
 ```@repl
 tmp = Template("./test1.html") #The last HTML code
 init = quote
@@ -76,6 +78,14 @@ end
 
 function (tmp::Template)(init::Expr)
     eval(init)
+    html = tmp.splitted_html[1]
+    for (part_of_html, code) in zip(tmp.splitted_html[2:end], tmp.codes)
+        html*=string(eval(Meta.parse(code)))*part_of_html
+    end
+    return html
+end
+
+function (tmp::Template)()
     html = tmp.splitted_html[1]
     for (part_of_html, code) in zip(tmp.splitted_html[2:end], tmp.codes)
         html*=string(eval(Meta.parse(code)))*part_of_html

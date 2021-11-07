@@ -1,0 +1,3 @@
+[deps]
+DocsPackage = "fd2bb29c-f35c-46f8-8f03-8ad6bdf20863"
+Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
