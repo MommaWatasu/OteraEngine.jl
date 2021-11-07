@@ -10,19 +10,19 @@ jobs:
         julia-version: ['1.0', '1.5', 'nightly']
     name: Build Jinja.jl
     steps:
-        uses: actions/checkout@v2
-        uses: julia-actions/setup-julia@v1
+     -  uses: actions/checkout@v2
+     -  uses: julia-actions/setup-julia@v1
         with:
           version: ${{ matrix.julia-version }}
-        uses: julia-actions/julia-buildpkg@v1
-        uses: julia-actions/julia-runtest@v1
-        run: julia -e 'ENV["COVERALLS_TOKEN"]="9GUMuQ71RVYlffdWEEMQHLAGVVwbCuN14"; using Pkg; Pkg.add("Coverage"); using Coverage; Coveralls.submit_local(Coveralls.process_folder())'
-        run: julia -e 'ENV["CODECOV_TOKEN"]="aaeb3d81-aded-4899-904b-cb507656d0c2"; using Coverage; Codecov.submit_local(Codecov.process_folder())'
+     -  uses: julia-actions/julia-buildpkg@v1
+     -  uses: julia-actions/julia-runtest@v1
+     -  run: julia -e 'ENV["COVERALLS_TOKEN"]="9GUMuQ71RVYlffdWEEMQHLAGVVwbCuN14"; using Pkg; Pkg.add("Coverage"); using Coverage; Coveralls.submit_local(Coveralls.process_folder())'
+     -  run: julia -e 'ENV["CODECOV_TOKEN"]="aaeb3d81-aded-4899-904b-cb507656d0c2"; using Coverage; Codecov.submit_local(Codecov.process_folder())'
   Docs:
     runs-on: ubuntu-latest
     name: Make Docs
     steps:
-        run: julia --project=docs/ -e 'using Pkg; Pkg.develop(PackageSpec(path=pwd())); Pkg.instantiate()'
+      - run: julia --project=docs/ -e 'using Pkg; Pkg.develop(PackageSpec(path=pwd())); Pkg.instantiate()'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: julia --project=docs/ docs/make.jl
+      - run: julia --project=docs/ docs/make.jl
