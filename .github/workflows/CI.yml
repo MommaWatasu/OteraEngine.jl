@@ -10,13 +10,11 @@ jobs:
         julia-version: ['1.0', '1.5', 'nightly']
     name: Build Jinja.jl
     steps:
-      - name: Set up enviroment
         uses: actions/checkout@v2
         uses: julia-actions/setup-julia@v1
         with:
           version: ${{ matrix.julia-version }}
         uses: julia-actions/julia-buildpkg@v1
-      - name: Testing
         uses: julia-actions/julia-runtest@v1
       - name: Sending
         run: julia -e 'ENV["COVERALLS_TOKEN"]="9GUMuQ71RVYlffdWEEMQHLAGVVwbCuN14"; using Pkg; Pkg.add("Coverage"); using Coverage; Coveralls.submit_local(Coveralls.process_folder())'
