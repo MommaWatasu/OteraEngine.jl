@@ -12,4 +12,6 @@ using Test
         usr="Julia"
     end
     @test result == tmp(init)
+    tmp = Template("./test3.html")
+    @test_nowarn tmp()
 end
