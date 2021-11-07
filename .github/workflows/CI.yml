@@ -1,0 +1,20 @@
+name: CI
+
+on: [push]
+
+jobs:
+  Build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        julia-version: ['1.0', '1.5', 'nightly']
+    name: build Jinja.jl
+    steps:
+      - uses: actions/checkout@v2
+      - uses: julia-actions/setup-julia@v1
+        with:
+          version: ${{ matrix.julia-version }}
+      - uses: julia-actions/julia-buildpkg@v1
+      - uses: julia-actions/julia-runtest@v1
+      - run: julia -e 'ENV["COVERALLS_TOKEN"]="9GUMuQ71RVYlffdWEEMQHLAGVVwbCuN14"; using Pkg; Pkg.add("Coverage"); using Coverage; Coveralls.submit_local(Coveralls.process_folder())'
+      - run: julia -e 'ENV["CODECOV_TOKEN"]="aaeb3d81-aded-4899-904b-cb507656d0c2"; using Coverage; Codecov.submit_local(Codecov.process_folder())'
