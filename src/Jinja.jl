@@ -76,11 +76,15 @@ function Template(html::String; path::Bool=true)
     return Template(splitted_html, codes)
 end
 
-function (tmp::Template)(init::Expr)
-    eval(init)
+function (tmp::Template)(init::Dict{String, T}) where T <: Any
     html = tmp.splitted_html[1]
     for (part_of_html, code) in zip(tmp.splitted_html[2:end], tmp.codes)
-        html*=string(eval(Meta.parse(code)))*part_of_html
+        arg_string = ""
+        for v in keys(init)
+            arg_string*=(v*",")
+        end
+        eval(Meta.parse("function f("*arg_string*"); "*code*";end"))
+        html*=string(Base.invokelatest(f, values(init)...))*part_of_html
     end
     return html
 end
@@ -88,7 +92,8 @@ end
 function (tmp::Template)()
     html = tmp.splitted_html[1]
     for (part_of_html, code) in zip(tmp.splitted_html[2:end], tmp.codes)
-        html*=string(eval(Meta.parse(code)))*part_of_html
+        eval(Meta.parse("function f();"*code*";end"))
+        html*=string(Base.invokelatest(f))*part_of_html
     end
     return html
 end
