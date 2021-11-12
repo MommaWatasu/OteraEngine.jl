@@ -1,7 +1,7 @@
 name = "Jinja"
 uuid = "77962e87-5f16-4699-9e7e-ba81324b26cc"
 authors = ["Momma Watasu"]
-version = "0.1.0"
+version = "0.1.1"
 
 [compat]
 julia = "1"
