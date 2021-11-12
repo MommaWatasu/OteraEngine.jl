@@ -1,5 +1,14 @@
 # Tutorial
 
+## Installation
+
+Jinja can be installed using the Julia package manager. From the Julia REPL, type ] to enter the Pkg REPL mode and run.
+```
+pkg > add Jinja
+```
+
+## Usage
+
 Acutually, this package has only two structure and function, but these are very powerful because of Metaprogramming function of Julia.
 
 ```@docs

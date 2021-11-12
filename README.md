@@ -10,6 +10,13 @@ features
 - Very very small! There are no dependency.
 - You can write a Julia code directly in HTML.
 
+## Installation
+
+Jinja can be installed using the Julia package manager. From the Julia REPL, type ] to enter the Pkg REPL mode and run.
+```
+pkg > add Jinja
+```
+
 ## Resources
 - Documentation:[https://qgmw22.github.io/Jinja.jl/docs/](https://qgmw22.github.io/Jinja.jl/docs/)
 - Source Code:[https://github.com/QGMW22/Jinja.jl](https://github.com/QGMW22/Jinja.jl)(This Page)
