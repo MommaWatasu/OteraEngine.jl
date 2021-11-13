@@ -2,7 +2,7 @@
 
 |GitHub Actions|Coveralls|CodeCov|
 |:------------:|:-----:|:------:|
-|[![CI](https://github.com/QGMW22/Jinja.jl/actions/workflows/CI.yml/badge.svg)](https://github.com/QGMW22/Jinja.jl/actions/workflows/CI.yml)|[![Coverage Status](http://coveralls.io/repos/github/QGMW22/Jinja.jl/badge.svg?branch=master)](https://coveralls.io/github/QGMW22/Jinja.jl?branch=master)|[![codecov](https://codecov.io/gh/QGMW22/Jinja.jl/branch/master/graph/badge.svg?token=HV07A2W0WH)](https://codecov.io/gh/QGMW22/OteraEngine.jl)|
+|[![CI](https://github.com/QGMW22/Jinja.jl/actions/workflows/CI.yml/badge.svg)](https://github.com/QGMW22/Jinja.jl/actions/workflows/CI.yml)|[![Coverage Status](https://coveralls.io/repos/github/QGMW22/OteraEngine.jl/badge.svg?branch=master)](https://coveralls.io/github/QGMW22/OteraEngine.jl?branch=master)|[![codecov](https://codecov.io/gh/QGMW22/OteraEngine.jl/branch/master/graph/badge.svg?token=HV07A2W0WH)](https://codecov.io/gh/QGMW22/OteraEngine.jl)|
 
 ## Abstract
 This is the template engine for JuliaLang.
