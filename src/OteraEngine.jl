@@ -1,4 +1,4 @@
-module Jinja
+module OteraEngine
 
 export Template
 
@@ -16,7 +16,7 @@ The code needs to be enclosed by ```.
 For exmaple, this HTML work:
 ```
 <html>
-    <head><title>Jinja Test</title></head>
+    <head><title>OteraEngine Test</title></head>
     <body>
         Hello, `usr`!
     </body>
@@ -32,9 +32,7 @@ Please see the example below.
 # Example
 ```@repl
 tmp = Template("./test1.html") #The last HTML code
-init = quote
-    usr="Julia"
-end
+init = Dict("usr"=>"OteraEngine")
 result = tmp(init)
 println(result)
 ```

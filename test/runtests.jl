@@ -1,4 +1,4 @@
-using Jinja
+using OteraEngine
 using Test
 
 @testset "Jinja.jl" begin

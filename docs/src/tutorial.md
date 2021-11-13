@@ -2,9 +2,9 @@
 
 ## Installation
 
-Jinja can be installed using the Julia package manager. From the Julia REPL, type ] to enter the Pkg REPL mode and run.
+OteraEngine can be installed using the Julia package manager. From the Julia REPL, type ] to enter the Pkg REPL mode and run.
 ```
-pkg > add Jinja
+pkg > add OteraEngine
 ```
 
 ## Usage
@@ -19,7 +19,7 @@ Specifically, you can also do this.
 ```
 #HTML Template File
 <html>
-    </head><title>MyPage</title><head>
+    <head><title>MyPage</title></head>
     <body>
         The current time is <strong>
         `
@@ -33,7 +33,7 @@ Specifically, you can also do this.
 
 ```
 #Julia code
-using Jinja
+using OteraEngine
 
 tmp = Template("./time.html") #The last HTML
 println(tmp())

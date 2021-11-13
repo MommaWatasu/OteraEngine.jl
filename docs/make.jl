@@ -1,11 +1,11 @@
-include("../src/Jinja.jl")
-using .Jinja
+include("../src/OteraEngine.jl")
+using .OteraEngine
 using Documenter
 
 makedocs(;
-    modules=[Jinja],
+    modules=[OteraEngine],
     authors="QGMW22 <ascendwatson@gmail.com> and contributors",
-    sitename="Jinja.jl",
+    sitename="OteraEngine.jl",
     pages=[
         "Home" => "index.md",
         "Tutorial" => "tutorial.md"
