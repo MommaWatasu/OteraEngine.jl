@@ -22,10 +22,10 @@ Specifically, you can also do this.
     <head><title>MyPage</title></head>
     <body>
         The current time is <strong>
-        `
+        ```
         using Dates
         now()
-        `
+        ```
         </strong>
     </body>
 </html>
