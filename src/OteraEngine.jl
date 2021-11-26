@@ -54,9 +54,7 @@ For exmaple, this HTML work:
 ```
 
 # Rendering
-After you create a Template, you just have to execute the codes! For this, you use the Function-like Object of Template structure.
-    tmp(; init::Dict{String, T}) where T <: Any
-variables are initialized by `init`(`init` is the parameter for Function-like Object). `init` must be `Dict`type. If you don't pass the `init`, the initialization won't be done.
+After you create a Template, you just have to execute the codes! For this, you use the Function-like Object of Template structure.`tmp(; init::Dict{String, T}) where T <: Any` variables are initialized by `init`(`init` is the parameter for Function-like Object). `init` must be `Dict`type. If you don't pass the `init`, the initialization won't be done.
 Please see the example below.
 
 # Example
