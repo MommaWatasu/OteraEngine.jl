@@ -19,6 +19,7 @@ using Test
     @test 0 <= m.offset <= 100
     
     #include config file
+    @test_throws ArgumentError Template("test3.html", config_path="test.conf")
     tmp = Template("test3.html", config_path="test.toml")
     regex = r"<strong>[\s\S]*?([0-9]{2})[\s\S]*?</strong>"
     m = match(regex, tmp())
