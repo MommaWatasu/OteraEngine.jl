@@ -1,6 +1,19 @@
 module OteraEngine
 
+using TOML
+
 export Template
+
+function parse_config(filename::String)
+    if filename[end-3:end] != "toml"
+        throw(ArgumentError("Suffix of config file must be `toml`! Now, it is `$(filename[end-3:end])`."))
+    end
+    config = ""
+    open(filename, "r") do f
+        config = read(f, String)
+    end
+    return TOML.parse(config)
+end
 
 """
     Template(html::String; path::Bool=true)
@@ -42,45 +55,48 @@ struct Template
     codes::Array{String, 1}
 end
 
-function Template(html::String; path::Bool=true)
+function Template(html::String; path::Bool=true, config_path::String="",
+        config::Dict{String, T} = Dict(
+            "code_block_start"=>"```",
+            "code_block_stop"=>"```"
+        )
+    ) where T<:Any
     if path
         open(html, "r") do f
             html = read(f, String)
         end
     end
+    if config_path!=""
+        conf_file = parse_config(config_path)
+        for v in keys(conf_file)
+            config[v] = conf_file[v]
+        end
+    end
     code = ""
     codes = Array{String}(undef, 0)
     splitted_html = Array{String}(undef, 0)
-    is_code=false
-    i=1
-    j=0
-    for s in html
-        if s=='`'
-            if is_code
-                is_code=false
-                i = j+2
-                push!(codes, replace(code, "\n"=>"; "))
-                code=""
-            else
-                push!(splitted_html, html[i:j])
-                is_code=true
-            end
-        elseif is_code
-            code*=s
-        end
-        j+=1
+    i = 1
+    code_block_start, code_block_stop = config["code_block_start"], config["code_block_stop"]
+    start_len, stop_len = length(code_block_start), length(code_block_stop)
+    regex = Regex(code_block_start*"[\\s\\S]*?"*code_block_stop)
+    codes_indices = findall(regex, html)
+    for index in codes_indices
+        s, e = index.start, index.stop
+        push!(codes, replace(html[s+start_len:e-stop_len], "\n"=>"; ")) #Does it work without replace?
+        push!(splitted_html, html[i:s-1])
+        i = e+1
     end
-    push!(splitted_html, html[i:j])
+    push!(splitted_html, html[i:end])
     return Template(splitted_html, codes)
 end
 
 function (tmp::Template)(init::Dict{String, T}) where T <: Any
     html = tmp.splitted_html[1]
+    arg_string = ""
+    for v in keys(init)
+        arg_string*=(v*",")
+    end
     for (part_of_html, code) in zip(tmp.splitted_html[2:end], tmp.codes)
-        arg_string = ""
-        for v in keys(init)
-            arg_string*=(v*",")
-        end
         eval(Meta.parse("function f("*arg_string*"); "*code*";end"))
         html*=string(Base.invokelatest(f, values(init)...))*part_of_html
     end
