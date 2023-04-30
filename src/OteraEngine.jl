@@ -114,8 +114,6 @@ function Template(html::String; path::Bool=true, config_path::String="",
         push!(splitted_html, html[i:s-1])
         i = e+1
     end
-    println(top_codes)
-    println(codes)
     push!(splitted_html, html[i:end])
     return Template(splitted_html, codes, top_codes)
 end
