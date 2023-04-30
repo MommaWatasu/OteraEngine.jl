@@ -4,10 +4,14 @@ using Documenter
 
 makedocs(;
     modules=[OteraEngine],
-    authors="QGMW22 <ascendwatson@gmail.com> and contributors",
+    authors="MommaWatasu <ascendwatson@gmail.com> and contributors",
     sitename="OteraEngine.jl",
     pages=[
         "Home" => "index.md",
         "Tutorial" => "tutorial.md"
     ],
+)
+
+deploydocs(
+    repo = "github.com/MommaWatasu/OteraEngine.jl.git",
 )
