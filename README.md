@@ -1,8 +1,8 @@
 # OteraEngine
 
-|GitHub Actions|Coveralls|CodeCov|
-|:------------:|:-----:|:------:|
-|[![CI](https://github.com/QGMW22/Jinja.jl/actions/workflows/CI.yml/badge.svg)](https://github.com/QGMW22/Jinja.jl/actions/workflows/CI.yml)|[![Coverage Status](https://coveralls.io/repos/github/QGMW22/OteraEngine.jl/badge.svg?branch=master)](https://coveralls.io/github/QGMW22/OteraEngine.jl?branch=master)|[![codecov](https://codecov.io/gh/QGMW22/OteraEngine.jl/branch/master/graph/badge.svg?token=HV07A2W0WH)](https://codecov.io/gh/QGMW22/OteraEngine.jl)|
+|GitHub Actions|CodeCov|Docs|
+|:------------:|:------:|:--------:|
+|[![CI][CI-img]][CI-url] |[![codecov][codecov-img]][codecov-url]|[![docs dev][docs-dev-img]][docs-dev-url] [![docs stable][docs-stable-img]][docs-stable-url]|
 
 ## Abstract
 This is the template engine for JuliaLang.
@@ -18,8 +18,20 @@ pkg > add OteraEngine
 ```
 
 ## Resources
-- Documentation:[https://qgmw22.github.io/OteraEngine.jl/docs/](https://qgmw22.github.io/OteraEngine.jl/docs/)
-- Source Code:[https://github.com/QGMW22/OteraEngine.jl](https://github.com/QGMW22/OteraEngine.jl)(This Page)
+- [Documentation](https://mommawatasu.github.io/OteraEngine.jl/dev/)
+- [Source Code](https://github.com/MommaWatasu/OteraEngine.jl)(This Page)
 
 ## Why OteraEngine?
 "Template" is similer to "temple", "Otera" in Japanese. And since this package is a template engine,  I named it OteraEngine.
+
+[CI-img]: https://github.com/QGMW22/Jinja.jl/actions/workflows/CI.yml/badge.svg
+[CI-url]: https://github.com/QGMW22/Jinja.jl/actions/workflows/CI.yml
+
+[codecov-img]: https://codecov.io/gh/MommaWatasu/OteraEngine.jl/branch/master/graph/badge.svg?token=HV07A2W0WH
+[codecov-url]: https://codecov.io/gh/MommaWatasu/OteraEngine.jl
+
+[docs-dev-img]: https://img.shields.io/badge/docs-dev-blue.svg
+[docs-dev-url]: https://mommawatasu.github.io/OteraEngine.jl/dev
+
+[docs-stable-img]: https://img.shields.io/badge/docs-stable-blue.svg
+[docs-stable-url]: https://mommawatasu.github.io/OteraEngine.jl/stable
