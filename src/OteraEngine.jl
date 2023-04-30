@@ -68,6 +68,7 @@ println(result)
 struct Template
     splitted_html::Array{String, 1}
     codes::Array{String, 1}
+    top_codes::Array{String, 1}
 end
 
 function Template(html::String; path::Bool=true, config_path::String="",
@@ -87,8 +88,8 @@ function Template(html::String; path::Bool=true, config_path::String="",
             config[v] = conf_file[v]
         end
     end
-    code = ""
     codes = Array{String}(undef, 0)
+    top_codes = Array{String}(undef, 0)
     splitted_html = Array{String}(undef, 0)
     i = 1
     code_block_start, code_block_stop = config["code_block_start"], config["code_block_stop"]
@@ -97,12 +98,26 @@ function Template(html::String; path::Bool=true, config_path::String="",
     codes_indices = findall(regex, html)
     for index in codes_indices
         s, e = index.start, index.stop
-        push!(codes, replace(html[s+start_len:e-stop_len], "\n"=>"; ")) #Does it work without replace?
+        regex = r"(using|import)\s.*[\n, ;]"
+        result = eachmatch(regex, html[s+start_len:e-stop_len])
+        if length(collect(result))==0
+            push!(codes, replace(html[s+start_len:e-stop_len], "\n"=>"; ")) #Does it work without replace?
+        else
+            #part of html
+            base_code = html[s+start_len:e-stop_len]
+            for m in result
+                base_code = replace(base_code, m.match=>"")
+                push!(top_codes, replace(m.match, "\n"=>""))
+            end
+            push!(codes, replace(base_code, "\n"=>";"))
+        end
         push!(splitted_html, html[i:s-1])
         i = e+1
     end
+    println(top_codes)
+    println(codes)
     push!(splitted_html, html[i:end])
-    return Template(splitted_html, codes)
+    return Template(splitted_html, codes, top_codes)
 end
 
 function (tmp::Template)(init::Dict{String, T}) where T <: Any
@@ -110,6 +125,9 @@ function (tmp::Template)(init::Dict{String, T}) where T <: Any
     arg_string = ""
     for v in keys(init)
         arg_string*=(v*",")
+    end
+    for top_code in tmp.top_codes
+        eval(Meta.parse(top_code))
     end
     for (part_of_html, code) in zip(tmp.splitted_html[2:end], tmp.codes)
         eval(Meta.parse("function f("*arg_string*"); "*code*";end"))
@@ -120,6 +138,9 @@ end
 
 function (tmp::Template)()
     html = tmp.splitted_html[1]
+    for top_code in tmp.top_codes
+        eval(Meta.parse(top_code))
+    end
     for (part_of_html, code) in zip(tmp.splitted_html[2:end], tmp.codes)
         eval(Meta.parse("function f();"*code*";end"))
         html*=string(Base.invokelatest(f))*part_of_html
