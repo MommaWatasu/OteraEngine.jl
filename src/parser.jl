@@ -1,7 +1,14 @@
 struct ParserConfig
-    jl_code_block::Tuple{String, String},
-    tmp_code_block::Tuple{String, String},
-    tmp_variable::Tuple{String, String}
+    jl_code_block::Tuple{String, String}
+    tmp_code_block::Tuple{String, String}
+    variable_block::Tuple{String, String}
+    function ParserConfig(config::Dict{String, String})
+        return new(
+            (config["jl_block_start"], config["jl_block_stop"]),
+            (config["tmp_block_start"], config["tmp_block_stop"]),
+            (config["variable_block_start"], config["variable_block_stop"])
+        )
+    end
 end
 
 struct ParserError <: Exception
@@ -13,7 +20,7 @@ Base.showerror(io::IO, e::ParserError) = print(io, "ParserError: "*e.msg)
 # text parser
 function parse_text(txt::String, config::ParserConfig)
     txt, jl_codes, top_codes = parse_jl_code(txt, config.jl_code_block)
-    txt, tmp_codes = parse_tmp_code(txt, config)
+    txt, tmp_codes = parse_tmp_code(txt, config.tmp_code_block)
     return txt, top_codes, jl_codes, tmp_codes
 end
 
