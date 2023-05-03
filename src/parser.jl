@@ -44,9 +44,24 @@ struct TmpCodeBlock
     contents::Array{Union{String, TmpStatement}, 1}
 end
 
+function (TCB::TmpCodeBlock)()
+    code = "txt=\"\";"
+    for content in TCB.contents
+        if typeof(content) == TmpStatement
+            code *= (content.st*";")
+        else
+            code *= ("txt *= \"$content\";")
+        end
+    end
+    if length(TCB.contents) != 1
+        code *= "push!(txts, txt);"
+    end
+    return code
+end
+
 function parse_tmp_code(txt::String, tmp_code_block::Tuple{String, String})
     sl, el = length(tmp_code_block[1]), length(tmp_code_block[2])
-    regex = Regex(tmp_code_block[1]*"[\\s\\S]*?"*tmp_code_block[2])
+    regex = Regex(tmp_code_block[1]*"\\s*(?<tmp_code>[\\s\\S]*?)\\s*?"*tmp_code_block[2])
     result = eachmatch(regex, txt)
     tmp_codes = Array{TmpCodeBlock}(undef, 0)
     block = Array{Union{String, TmpStatement}}(undef, 0)
@@ -62,9 +77,7 @@ function parse_tmp_code(txt::String, tmp_code_block::Tuple{String, String})
             out_txt *= txt[idx:m.offset-1]
         end
         code_len = length(m.match)
-        tmp_code = m.match
-        tmp_code = replace(tmp_code, match(Regex(tmp_code_block[1]*"[\\s]*"), tmp_code).match => "")
-        tmp_code = replace(tmp_code, match(Regex("[\\s]*?"*tmp_code_block[2]), tmp_code).match => "")
+        tmp_code = m[:tmp_code]
         operator = split(tmp_code)[1]
         if operator == "set"
             if length(block) == 0
@@ -91,7 +104,7 @@ function parse_tmp_code(txt::String, tmp_code_block::Tuple{String, String})
             depth += 1
             if operator == "with"
                 with_st = replace(tmp_code, " "=>"")[5:end]
-                push!(block, TmpStatement("function f$func_count("*with_st*")"))
+                push!(block, TmpStatement("let "*with_st))
                 func_count += 1
             else
                 push!(block, TmpStatement(tmp_code))
