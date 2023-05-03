@@ -9,19 +9,23 @@ using Test
     open("test2.html", "r") do f
         result = read(f, String)
     end
-    init = Dict("usr"=>"Julia")
-    @test result == tmp(init)
+    @test result == tmp(jl_init=Dict("usr"=>"Julia"))
     
     #In case of no params and specified config
-    tmp = Template("test3.html", config=Dict("code_block_start"=>"{{", "code_block_stop"=>"}}"))
-    regex = r"<strong>[\s\S]*?([0-9]{2})[\s\S]*?</strong>"
+    tmp = Template("test3.html", config=Dict("jl_block_start"=>"{{", "jl_block_stop"=>"}}"))
+    regex = r"<strong>\s*(?<value>[0-9]*)\s*?</strong>"
     m = match(regex, tmp())
-    @test 0 <= m.offset <= 100
+    @test 0 <= parse(Int, m[:value]) <= 100
     
     #include config file
     @test_throws ArgumentError Template("test3.html", config_path="test.conf")
     tmp = Template("test3.html", config_path="test.toml")
-    regex = r"<strong>[\s\S]*?([0-9]{2})[\s\S]*?</strong>"
+    regex = r"<strong>\s*(?<value>[0-9]*)\s*?</strong>"
     m = match(regex, tmp())
-    @test 0 <= m.offset <= 100
+    @test 0 <= parse(Int, m[:value]) <= 100
+    
+    #check `using` is available
+    tmp = Template("test4.html")
+    println(tmp())
+    @test_nowarn tmp()
 end

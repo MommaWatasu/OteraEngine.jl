@@ -1,2 +1,2 @@
-code_block_start = "{{"
-code_block_stop = "}}"
+jl_block_start = "{{"
+jl_block_stop = "}}"
