@@ -56,18 +56,7 @@ struct Template
     config::ParserConfig
 end
 
-const default_config::Dict{String, String} = Dict(
-    "jl_block_start"=>"```",
-    "jl_block_stop"=>"```",
-    "tmp_block_start"=>"{%",
-    "tmp_block_stop"=>"%}",
-    "variable_block_start"=>"{{",
-    "variable_block_stop"=>"}}"
-)
-
-function Template(txt::String; path::Bool=true, config_path::String="",
-        config::Dict{String, String} = Dict{String, String}()
-    )
+function Template(txt::String; path::Bool=true, config_path::String="", config::Dict{String, String} = Dict{String, String}())
     if path
         open(txt, "r") do f
             txt = read(f, String)
@@ -79,7 +68,14 @@ function Template(txt::String; path::Bool=true, config_path::String="",
             config[v] = conf_file[v]
         end
     end
-    config_dict = default_config
+    config_dict = Dict{String, String}(
+        "jl_block_start"=>"```",
+        "jl_block_stop"=>"```",
+        "tmp_block_start"=>"{%",
+        "tmp_block_stop"=>"%}",
+        "variable_block_start"=>"{{",
+        "variable_block_stop"=>"}}"
+    )
     for key in keys(config)
         config_dict[key] = config[key]
     end
