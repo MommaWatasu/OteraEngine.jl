@@ -56,15 +56,17 @@ struct Template
     config::ParserConfig
 end
 
+const default_config::Dict{String, String} = Dict(
+    "jl_block_start"=>"```",
+    "jl_block_stop"=>"```",
+    "tmp_block_start"=>"{%",
+    "tmp_block_stop"=>"%}",
+    "variable_block_start"=>"{{",
+    "variable_block_stop"=>"}}"
+)
+
 function Template(txt::String; path::Bool=true, config_path::String="",
-        config::Dict{String, String} = Dict(
-            "jl_block_start"=>"```",
-            "jl_block_stop"=>"```",
-            "tmp_block_start"=>"{%",
-            "tmp_block_stop"=>"%}",
-            "variable_block_start"=>"{{",
-            "variable_block_stop"=>"}}"
-        )
+        config::Dict{String, String} = Dict{String, String}()
     )
     if path
         open(txt, "r") do f
@@ -77,7 +79,11 @@ function Template(txt::String; path::Bool=true, config_path::String="",
             config[v] = conf_file[v]
         end
     end
-    config = ParserConfig(config)
+    config_dict = default_config
+    for key in keys(config)
+        config_dict[key] = config[key]
+    end
+    config = ParserConfig(config_dict)
     return Template(parse_text(txt, config)..., config)
 end
 
@@ -115,7 +121,7 @@ function (Tmp::Template)(; tmp_init::Dict{String, S}=Dict{String, Any}(), jl_ini
     end
     
     for (i, jl_code) in enumerate(Tmp.jl_codes)
-        eval(Meta.parse("function f("*jl_args*");"*jl_code*"end"))
+        eval(Meta.parse("function f("*jl_args*");"*jl_code*";end"))
         out_txt = replace(out_txt, "<jlcode$i>"=>string(Base.invokelatest(f, values(jl_init)...)))
     end
     return assign_variables(out_txt, tmp_init, Tmp.config.variable_block)
