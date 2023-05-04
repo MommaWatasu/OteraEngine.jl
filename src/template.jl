@@ -1,48 +1,19 @@
 """
-    Template(html::String; path::Bool=true, config_path::String="",
-        config::Dict{String, T} = Dict(
-            "code_block_start"=>"```",
-            "code_block_stop"=>"```"
-        )
-    )
+    Template(txt::String; path::Bool=true, config_path::String="", config::Dict{String, String} = Dict())
 This is the only structure and function of this package.
-This structure has 2 parameter,
-- `html` is the path to the HTML file or HTML of String type.
-- `path` determines whether the parameter `html` represents the file path. The default value is `true`.
+This structure has 4 parameter,
+- `txt` is the path to the template file or template of String type.
+- `path` determines whether the parameter `txt` represents the file path. The default value is `true`.
 - `config_path` is path to config file. The suffix of config file must be `toml`.
-- `config` is configuration of Template. It is type of `Dict`, and now there are two settings bellow.
-    - `code_block_start` : The string at the start of code blocks.
-    - `code_block_stop` : The string at the end of code blocks.
-
-# Config File
-A config file must be written in TOML format. like this:
-```
-code_block_start = "{{"
-code_block_stop = "}}"
-```
-The item is the same as the argiment `config`.
-
-# HTML
-You can write the code of Template in JuliaLang, and just write the variables you want to output to a HTML at the end of the code.
-The code needs to be enclosed by ```(This can be changed by `config` variable).
-
-For exmaple, this HTML work:
-```
-<html>
-    <head><title>OteraEngine Test</title></head>
-    <body>
-        Hello, ```usr```!
-    </body>
-</html>
-```
+- `config` is configuration of template. It is type of `Dict`, please see [configuraiton]() for more detail.
 
 # Rendering
-After you create a Template, you just have to execute the codes! For this, you use the Function-like Object of Template structure.`tmp(; init::Dict{String, T}) where T <: Any` variables are initialized by `init`(`init` is the parameter for Function-like Object). `init` must be `Dict`type. If you don't pass the `init`, the initialization won't be done.
-Please see the example below.
+After you create a Template, you just have to execute the codes! For this, you use the Function-like Object of Template structure.`tmp(; jl_init::Dict{String, String}, tmp_init::Dict{String, String})` variables are initialized by `jl_init`(for julia code) and `tmp_init`(for template code). These parameters must be `Dict` type. If you don't pass the `jl_init` or `tmp_init`, the initialization won't be done.
 
 # Example
+This is a simple usage:
 ```@repl
-tmp = Template("./test1.html") #The last HTML code
+tmp = Template("./test1.html")
 init = Dict("usr"=>"OteraEngine")
 result = tmp(init)
 println(result)
