@@ -75,7 +75,7 @@ end
 
 function parse_tmp_code(txt::String, tmp_code_block::Tuple{String, String})
     sl, el = length(tmp_code_block[1]), length(tmp_code_block[2])
-    regex = Regex(tmp_code_block[1]*"\\s*(?<tmp_code>[\\s\\S]*?)\\s*?"*tmp_code_block[2])
+    regex = Regex(tmp_code_block[1]*"\\s*(?<tmp_code>[\\s\\S]*?)\\s*?"*tmp_code_block[2]*"\\s*")
     result = eachmatch(regex, txt)
     tmp_codes = Array{TmpCodeBlock}(undef, 0)
     block = Array{Union{String, TmpStatement}}(undef, 0)
@@ -86,7 +86,7 @@ function parse_tmp_code(txt::String, tmp_code_block::Tuple{String, String})
     out_txt = ""
     for m in result
         if depth != 0
-            push!(block, txt[idx:m.offset-1])
+            push!(block, string(lstrip(txt[idx:m.offset-1])))
         else
             out_txt *= txt[idx:m.offset-1]
         end
