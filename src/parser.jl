@@ -57,13 +57,20 @@ function (TCB::TmpCodeBlock)()
         if typeof(content) == TmpStatement
             code *= (content.st*";")
         else
-            code *= ("txt *= \"$content\";")
+            code *= ("txt *= \"$(apply_variables(content))\";")
         end
     end
     if length(TCB.contents) != 1
         code *= "push!(txts, txt);"
     end
     return code
+end
+
+function apply_variables(content)
+    for m in eachmatch(r"{{\s*(?<variable>[\s\S]*?)\s*?}}", content)
+        content = replace(content, m.match=>"\$"*m[:variable])
+    end
+    return content
 end
 
 function parse_tmp_code(txt::String, tmp_code_block::Tuple{String, String})
