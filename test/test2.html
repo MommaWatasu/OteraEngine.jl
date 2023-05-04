@@ -1,6 +1,10 @@
 <html>
-    <head><title>Jinja Test Page</title></head>
+    <head><title>MyPage</title></head>
     <body>
-        Hello, Julia!
+        The random number(0~100) is <strong>
+        {{
+        Int(round(rand()*100))
+        }}
+        </strong>
     </body>
 </html>
