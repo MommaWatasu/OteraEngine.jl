@@ -33,7 +33,7 @@ Actually, you have two way to write template. The first way is to write the code
 ```
 the code inside
 ```
-```...```
+    ```...```
 ```
 is executed as julia code(with the default configuration). In this case, OteraEngine insert the output of `now()`.
 
