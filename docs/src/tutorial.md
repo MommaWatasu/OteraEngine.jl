@@ -31,9 +31,9 @@ Actually, you have two way to write template. The first way is to write the code
     </body>
 </html>
 ```
-the code inside the
+the code inside
 ```
-    ``````
+```...```
 ```
 is executed as julia code(with the default configuration). In this case, OteraEngine insert the output of `now()`.
 
@@ -81,6 +81,19 @@ these statement is available:
 - `set` : assign a value to a variable. variables defined with this statement don't have a scope.
 - `end` : represent the end of a statement. this is necessary for `if`, `for`, `with`.
 these code will be executed after transformed to julia code. So the basic syntax is the same as Julia.
+
+And you can also insert variables in the text. Here is an example(`tmp_init = Dict("name"=>"watasu")`):
+```
+#input
+my name is {{ name }}.
+#output
+my name is watasu
+```
+the variables inside
+```
+{{...}}
+```
+is replaced with values defined in `tmp_init` or template code.
 
 ### Configurations
 there are six configurations:
