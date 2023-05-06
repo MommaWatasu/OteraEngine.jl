@@ -17,6 +17,33 @@ end
 
 Base.showerror(io::IO, e::ParserError) = print(io, "ParserError: "*e.msg)
 
+#new parser
+function parse_template(txt::String, config::ParserConfig)
+    jl_block_len = length.(config.jl_code_block)
+    tmp_block_len = length.(config.tmp_code_block)
+    variable_block_len = length.(config.variable_block)
+    start_pos = zeros(3)
+    for i in 1 : length(txt)
+        #start of the jl code block
+        if txt[i:i+jl_block_len[1]] == config.jl_code_block[1]
+            start_pos[1] = i
+        elseif txt[i:i+tmp_block_len[1]] == config.tmp_code_block[1]
+            start_pos[2] = i
+        elseif txt[i:i+variable_block_len[1]] == config.variable_block[1]
+            start_pos[3] = i
+        elseif txt[i:i+jl_block_len[2]] == config.jl_code_block[2]
+            if sum(start_pos) - start_pos[1] != 0
+            end
+        elseif txt[i:i*tmp_block_len[2]] == config.tmp_code_block[2]
+            if sum(start_pos) - start_pos[2] == 0
+            end
+        elseif txt[i:i+tmp_block_len[2]] == config.variable_block[2]
+            if sum(start_pos) - start_pos[3] == 0
+            end
+        end
+    end
+end
+
 # text parser
 function parse_text(txt::String, config::ParserConfig)
     txt, jl_codes, top_codes = parse_jl_code(txt, config.jl_code_block)
