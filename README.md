@@ -19,6 +19,7 @@ pkg > add OteraEngine
 
 ## Resources
 - [Documentation](https://mommawatasu.github.io/OteraEngine.jl/dev/)
+- [Tutorial](https://mommawatasu.github.io/OteraEngine.jl/dev/tutorial/)
 - [Source Code](https://github.com/MommaWatasu/OteraEngine.jl)(This Page)
 
 ## Why OteraEngine?
