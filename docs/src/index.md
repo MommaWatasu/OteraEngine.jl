@@ -12,4 +12,5 @@ If you have any questions about this, please write issues on [GitHub](https://gi
 
 ## Resources
 - [Documents](https://mommawatasu.github.io/OteraEngine.jl/dev)(This Page)
+- [Tutorial](https://mommawatasu.github.io/OteraEngine.jl/dev/tutorial/)
 - [source](https://github.com/MommaWatasu/OteraEngine.jl)
