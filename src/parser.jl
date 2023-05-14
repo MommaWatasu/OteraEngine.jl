@@ -71,7 +71,6 @@ function parse_template(txt::String, config::ParserConfig)
                     code = replace(code, t.match=>"")
                 end
                 push!(jl_codes, code)
-                out_txt *= txt[idx:jl_pos-1]
                 out_txt*="<jlcode$(block_counts[1])>"
                 block_counts[1] += 1
                 idx = i + jl_block_len
@@ -83,7 +82,7 @@ function parse_template(txt::String, config::ParserConfig)
                 throw(ParserError("invaild code block! code block can't be in another code block."))
             end
             if depth == 0
-                out_txt *= txt[idx:i-1]
+                out_txt *= string(lstrip(txt[idx:i-1]))
             else
                 push!(block, txt[idx:i-1])
             end
