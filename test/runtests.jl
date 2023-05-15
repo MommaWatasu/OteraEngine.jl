@@ -12,7 +12,7 @@ using Test
     @test result == tmp(jl_init=Dict("usr"=>"Julia"))
     
     #In case of no params and specified config
-    tmp = Template("test2.html", config=Dict("jl_block_start"=>"{{", "jl_block_stop"=>"}}"))
+    tmp = Template("test2.html", config=Dict("jl_block"=>"@@@"))
     regex = r"<strong>\s*(?<value>[0-9]*)\s*?</strong>"
     m = match(regex, tmp())
     @test 0 <= parse(Int, m[:value]) <= 100
@@ -25,8 +25,12 @@ using Test
     @test 0 <= parse(Int, m[:value]) <= 100
     
     #check `using` is available
-    tmp = Template("test3.html")
-    @test_nowarn tmp()
+    tmp = Template("test3-1.html")
+    result = ""
+    open("test3-2.html", "r") do f
+        result = read(f, String)
+    end
+    @test result == tmp()
     
     #check tmp codes work properly
     tmp = Template("test4-1.html")

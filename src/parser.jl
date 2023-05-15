@@ -64,7 +64,7 @@ function parse_template(txt::String, config::ParserConfig)
                 jl_pos = i
                 out_txt *= txt[idx:i-1]
             elseif jl_pos != 0
-                code = txt[jl_pos+jl_block_len+1:i-1]
+                code = txt[jl_pos+jl_block_len:i-1]
                 top_regex = r"(using|import)\s.*[\n, ;]"
                 for t in eachmatch(top_regex, code)
                     push!(top_codes, t.match)
