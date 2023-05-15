@@ -40,8 +40,7 @@ function Template(txt::String; path::Bool=true, config_path::String="", config::
         end
     end
     config_dict = Dict{String, String}(
-        "jl_block_start"=>"```",
-        "jl_block_stop"=>"```",
+        "jl_block"=>"```",
         "tmp_block_start"=>"{%",
         "tmp_block_stop"=>"%}",
         "variable_block_start"=>"{{",
@@ -51,7 +50,7 @@ function Template(txt::String; path::Bool=true, config_path::String="", config::
         config_dict[key] = config[key]
     end
     config = ParserConfig(config_dict)
-    return Template(parse_text(txt, config)..., config)
+    return Template(parse_template(txt, config)..., config)
 end
 
 struct TemplateError <: Exception
@@ -83,6 +82,7 @@ function (Tmp::Template)(; tmp_init::Dict{String, S}=Dict{String, Any}(), jl_ini
         out_txt = replace(out_txt, "<tmpcode$i>"=>txt)
     end
     
+    Pkg.activate()
     for top_code in Tmp.top_codes
         eval(Meta.parse(top_code))
     end

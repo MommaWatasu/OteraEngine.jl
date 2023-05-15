@@ -84,7 +84,7 @@ function parse_template(txt::String, config::ParserConfig)
             if depth == 0
                 out_txt *= string(lstrip(txt[idx:i-1]))
             else
-                push!(block, txt[idx:i-1])
+                push!(block, string(lstrip(txt[idx:i-1])))
             end
             tmp_pos = i
         #tmp code block stop
@@ -123,7 +123,7 @@ function parse_template(txt::String, config::ParserConfig)
         end
     end
     out_txt *= txt[idx:end]
-    return out_txt, jl_codes, top_codes, tmp_codes
+    return out_txt, top_codes, jl_codes, tmp_codes
 end
 
 # text parser
@@ -143,6 +143,7 @@ function parse_jl_code(txt::String, jl_code_block::Tuple{String, String})
         code = m.match[sl+1:length(m.match)-el]
         top_regex = r"(using|import)\s.*[\n, ;]"
         for t in eachmatch(top_regex, code)
+            println(t.match)
             push!(top_codes, t.match)
             code = replace(code, t.match=>"")
         end
