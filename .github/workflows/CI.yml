@@ -7,7 +7,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        julia-version: ['1.6', '1.7', '1.8']
+        julia-version: ['1.6', 'stable', 'latest']
     name: build OteraEngine
     steps:
       - uses: actions/checkout@v3
