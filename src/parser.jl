@@ -49,6 +49,7 @@ function parse_template(txt::String, config::ParserConfig)
     depth = 0
     block_counts = ones(Int, 2)
     idx = 1
+    eob = false
     
     jl_codes = Array{String}(undef, 0)
     top_codes = Array{String}(undef, 0)
@@ -56,6 +57,14 @@ function parse_template(txt::String, config::ParserConfig)
     block = Array{Union{String, TmpStatement}}(undef, 0)
     out_txt = ""
     for i in 1 : length(txt)
+        if eob
+            if txt[i+tmp_block_len[2]] in ['\t', '\n', ' ']
+                idx += 1
+            else
+                idx += 1
+                eob = false
+            end
+        end
         #jl code block
         if txt[i:min(end, i+jl_block_len-1)] == config.jl_code_block
             if tmp_pos != 0
@@ -110,6 +119,7 @@ function parse_template(txt::String, config::ParserConfig)
                     out_txt *= "<tmpcode$(block_counts[2])>"
                     block_counts[2] += 1
                     tmp_pos = 0
+                    eob = true
                 end
             else
                 depth += 1
