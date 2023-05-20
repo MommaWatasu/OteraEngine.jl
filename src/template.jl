@@ -57,7 +57,7 @@ struct TemplateError <: Exception
     msg::String
 end
 
-Base.showerror(io::IO, e::ParserError) = print(io, "TemplateError: "*e.msg)
+Base.showerror(io::IO, e::TemplateError) = print(io, "TemplateError: "*e.msg)
 
 function (Tmp::Template)(; tmp_init::Dict{String, S}=Dict{String, Any}(), jl_init::Dict{String, T}=Dict{String, Any}()) where {S, T}
     tmp_args = ""
@@ -77,7 +77,12 @@ function (Tmp::Template)(; tmp_init::Dict{String, S}=Dict{String, Any}(), jl_ini
     end
     tmp_def*="end"
     eval(Meta.parse(tmp_def))
-    txts = Base.invokelatest(tmp_func, values(tmp_init)...)
+    txts = ""
+    try
+        txts = Base.invokelatest(tmp_func, values(tmp_init)...)
+    catch e
+        throw(TemplateError("$e has occurred during processing tmp code blocks. if you can't find any problems in your template, please report issue on https://github.com/MommaWatasu/OteraEngine.jl/issues."))
+    end
     for (i, txt) in enumerate(txts)
         out_txt = replace(out_txt, "<tmpcode$i>"=>txt)
     end
@@ -89,7 +94,11 @@ function (Tmp::Template)(; tmp_init::Dict{String, S}=Dict{String, Any}(), jl_ini
     
     for (i, jl_code) in enumerate(Tmp.jl_codes)
         eval(Meta.parse("function f("*jl_args*");"*jl_code*";end"))
-        out_txt = replace(out_txt, "<jlcode$i>"=>string(Base.invokelatest(f, values(jl_init)...)))
+        try
+            out_txt = replace(out_txt, "<jlcode$i>"=>string(Base.invokelatest(f, values(jl_init)...)))
+        catch e
+            throw(TemplateError("$e has occurred during processing jl code blocks. if you can't find any problems in your template, please report issue on https://github.com/MommaWatasu/OteraEngine.jl/issues."))
+        end
     end
     return assign_variables(out_txt, tmp_init, Tmp.config.variable_block)
 end
