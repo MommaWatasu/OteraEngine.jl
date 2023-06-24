@@ -1,5 +1,7 @@
 # OteraEngine
 
+![logo](assets/logo.png)
+
 |GitHub Actions|CodeCov|Docs|
 |:------------:|:------:|:--------:|
 |[![CI][CI-img]][CI-url] |[![codecov][codecov-img]][codecov-url]|[![docs dev][docs-dev-img]][docs-dev-url] [![docs stable][docs-stable-img]][docs-stable-url]|
