@@ -17,8 +17,7 @@ julia> using OteraEngine
 julia> txt = "```using Dates; now()```. Hello {{ usr }}!"
 julia> tmp = Template(txt, path = false)
 julia> init = Dict("usr"=>"OteraEngine")
-julia> result = tmp(tmp_init = init)
-julia> println(result)
+julia> tmp(tmp_init = init)
 ```
 """
 struct Template
