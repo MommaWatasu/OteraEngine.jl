@@ -15,7 +15,7 @@ This is a simple usage:
 ```jldoctest
 julia> using OteraEngine
 julia> txt = "```using Dates; now()```. Hello {{ usr }}!"
-julia> tmp = Template(html, path = false)
+julia> tmp = Template(txt, path = false)
 julia> init = Dict("usr"=>"OteraEngine")
 julia> result = tmp(tmp_init = init)
 julia> println(result)
