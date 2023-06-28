@@ -87,11 +87,11 @@ function (Tmp::Template)(; tmp_init::Dict{String, S}=Dict{String, Any}(), jl_ini
     for (i, txt) in enumerate(txts)
         out_txt = replace(out_txt, "<tmpcode$i>"=>txt)
     end
-
+#=
     for top_code in Tmp.top_codes
         eval(Meta.parse(top_code))
     end
-    
+=#  
     for (i, jl_code) in enumerate(Tmp.jl_codes)
         eval(Meta.parse("function f("*jl_args*");"*jl_code*";end"))
         try
