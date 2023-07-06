@@ -22,7 +22,6 @@ julia> tmp(tmp_init = init)
 """
 struct Template
     txt::String
-    top_codes::Array{String, 1}
     jl_codes::Array{String, 1}
     tmp_codes::Array{TmpCodeBlock, 1}
     config::ParserConfig
@@ -87,15 +86,11 @@ function (Tmp::Template)(; tmp_init::Dict{String, S}=Dict{String, Any}(), jl_ini
     for (i, txt) in enumerate(txts)
         out_txt = replace(out_txt, "<tmpcode$i>"=>txt)
     end
-#=
-    for top_code in Tmp.top_codes
-        eval(Meta.parse(top_code))
-    end
-=#  
+    current_env = Base.active_project()
     for (i, jl_code) in enumerate(Tmp.jl_codes)
-        eval(Meta.parse("function f("*jl_args*");"*jl_code*";end"))
+        jl_code = "using Pkg; Pkg.activate(\"$current_env\"); "*jl_code
         try
-            out_txt = replace(out_txt, "<jlcode$i>"=>string(Base.invokelatest(f, values(jl_init)...)))
+            out_txt = replace(out_txt, "<jlcode$i>"=>rstrip(read(`julia -e $jl_code`, String)))
         catch e
             throw(TemplateError("$e has occurred during processing jl code blocks. if you can't find any problems in your template, please report issue on https://github.com/MommaWatasu/OteraEngine.jl/issues."))
         end
