@@ -22,6 +22,7 @@ julia> tmp(tmp_init = init)
 """
 struct Template
     txt::String
+    top_codes::Array{String, 1}
     jl_codes::Array{String, 1}
     tmp_codes::Array{TmpCodeBlock, 1}
     config::ParserConfig
@@ -59,15 +60,21 @@ end
 
 Base.showerror(io::IO, e::TemplateError) = print(io, "TemplateError: "*e.msg)
 
-function (Tmp::Template)(; tmp_init::Dict{String, S}=Dict{String, Any}(), jl_init::Dict{String, T}=Dict{String, Any}()) where {S, T}
+function (Tmp::Template)(; tmp_init::Dict{String, S}=Dict{String, Any}(), jl_init::Dict{String, <:Union{AbstractString, Number}}=Dict{String, Union{AbstractString, Number}}()) where {S}
     tmp_args = ""
     for v in keys(tmp_init)
         tmp_args*=(v*",")
     end
     
+    jl_dargs = ""
     jl_args = ""
-    for v in keys(jl_init)
-        jl_args*=(v*",")
+    for p in jl_init
+        jl_dargs*=(p[1]*",")
+        if typeof(p[2]) <: Number
+            jl_args*=(p[2]*",")
+        else
+            jl_args*=("\""*p[2]*"\""*",")
+        end
     end
     
     out_txt = Tmp.txt
@@ -88,7 +95,7 @@ function (Tmp::Template)(; tmp_init::Dict{String, S}=Dict{String, Any}(), jl_ini
     end
     current_env = Base.active_project()
     for (i, jl_code) in enumerate(Tmp.jl_codes)
-        jl_code = "using Pkg; Pkg.activate(\"$current_env\"); "*jl_code
+        jl_code = "using Pkg; Pkg.activate(\"$current_env\"); "*Tmp.top_codes[i]*"function f("*jl_dargs*");"*jl_code*";end; f("*jl_args*")"
         try
             out_txt = replace(out_txt, "<jlcode$i>"=>rstrip(read(`julia -e $jl_code`, String)))
         catch e

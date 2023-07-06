@@ -80,7 +80,16 @@ function parse_template(txt::String, config::ParserConfig)
                 jl_pos = i
                 out_txt *= txt[idx:i-1]
             elseif jl_pos != 0
-                push!(jl_codes, txt[jl_pos+jl_block_len:i-1])
+                code = txt[jl_pos+jl_block_len:i-1]
+                top_regex = r"(using|import)\s.*[\n, ;]"
+                result = eachmatch(top_regex, code)
+                tops = ""
+                for t in result
+                    tops *= t.match
+                    code = replace(code, t.match=>"")
+                end
+                push!(top_codes, tops)
+                push!(jl_codes, code)
                 out_txt*="<jlcode$(block_counts[1])>"
                 block_counts[1] += 1
                 idx = i + jl_block_len
@@ -134,7 +143,7 @@ function parse_template(txt::String, config::ParserConfig)
         end
     end
     out_txt *= txt[idx:end]
-    return out_txt, jl_codes, tmp_codes
+    return out_txt, top_codes, jl_codes, tmp_codes
 end
 
 # configuration(TOML format) parser
