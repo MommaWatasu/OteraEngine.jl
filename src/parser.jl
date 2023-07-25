@@ -65,7 +65,7 @@ function parse_template(txt::String, config::ParserConfig)
     out_txt = ""
     for i in 1 : length(txt)
         if eob
-            if txt[i+tmp_block_len[2]] in ['\t', '\n', ' ']
+            if txt[min(end, i+tmp_block_len[2])] in ['\t', '\n', ' ']
                 idx += 1
             else
                 idx += 1
