@@ -49,21 +49,31 @@ end
 
 ## template parser
 function parse_template(txt::String, config::ParserConfig)
+    # length of the code blocks start/end token
     jl_block_len = length(config.jl_code_block)
     tmp_block_len = length.(config.tmp_code_block)
-    
+
+    # pointers into the start of the code blocks
     jl_pos, tmp_pos = zeros(Int, 2)
+    # code block depth
     depth = 0
+    # the number of blocks
     block_counts = ones(Int, 2)
+    # index of the template
     idx = 1
+    # end of block: this variable is used to remove the extra escape sequence from the end of the tmp code blocks
     eob = false
-    
+
+    # prepare the arrays to store the code blocks
     jl_codes = Array{String}(undef, 0)
     top_codes = Array{String}(undef, 0)
     tmp_codes = Array{TmpCodeBlock}(undef, 0)
     block = Array{Union{String, TmpStatement}}(undef, 0)
     out_txt = ""
+    
+    # main loop
     for i in 1 : length(txt)
+        # remove the extra escape sequence after the end of the tmp code blocks
         if eob
             if txt[min(end, i+tmp_block_len[2])] in ['\t', '\n', ' ']
                 idx += 1
@@ -72,13 +82,16 @@ function parse_template(txt::String, config::ParserConfig)
                 eob = false
             end
         end
+        
         #jl code block
         if txt[i:min(end, i+jl_block_len-1)] == config.jl_code_block
             if tmp_pos != 0
                 throw(ParserError("invaild jl code block! code block can't be in another code block."))
+            # start of jl code blocks
             elseif jl_pos == 0
                 jl_pos = i
                 out_txt *= txt[idx:i-1]
+            # end of jl code blocks
             elseif jl_pos != 0
                 code = txt[jl_pos+jl_block_len:i-1]
                 top_regex = r"(using|import)\s.*[\n, ;]"
@@ -95,7 +108,7 @@ function parse_template(txt::String, config::ParserConfig)
                 idx = i + jl_block_len
                 jl_pos = 0
             end
-        #tmp code block start
+        # start of the tmp code blocks
         elseif txt[i:min(end, i+tmp_block_len[1]-1)] == config.tmp_code_block[1]
             if jl_pos != 0
                 throw(ParserError("invaild code block! code block can't be in another code block."))
@@ -106,10 +119,9 @@ function parse_template(txt::String, config::ParserConfig)
                 push!(block, string(lstrip(txt[idx:i-1])))
             end
             tmp_pos = i
-        #tmp code block stop
+        # end of tmp code blocks
         elseif txt[i:min(end, i+tmp_block_len[2]-1)] == config.tmp_code_block[2]
             code = strip(txt[tmp_pos+tmp_block_len[1]+1:i-1])
-            #process tmp code
             operator = split(code)[1]
             if operator == "set"
                 if length(block) == 0
