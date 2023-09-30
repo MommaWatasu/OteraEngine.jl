@@ -95,7 +95,8 @@ function (Tmp::Template)(; tmp_init::Dict{String, S}=Dict{String, Any}(), jl_ini
     end
     current_env = Base.active_project()
     for (i, jl_code) in enumerate(Tmp.jl_codes)
-        jl_code = "using Pkg; Pkg.activate(\"$current_env\"); "*Tmp.top_codes[i]*"function f("*jl_dargs*");"*jl_code*";end; f("*jl_args*")"
+        println(current_env)
+        jl_code = replace("using Pkg; Pkg.activate(\"$current_env\"); "*Tmp.top_codes[i]*"function f("*jl_dargs*");"*jl_code*";end; f("*jl_args*")", "\\"=>"\\\\")
         try
             out_txt = replace(out_txt, "<jlcode$i>"=>rstrip(read(`julia -e $jl_code`, String)))
         catch e
