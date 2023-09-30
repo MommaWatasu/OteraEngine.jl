@@ -4,9 +4,10 @@ on: [push]
 
 jobs:
   Build:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
+        os: [ubuntu-latest, windows-latest]
         julia-version: ['1.6', '1.9']
     name: build OteraEngine
     steps:
