@@ -38,7 +38,7 @@ function (TCB::TmpCodeBlock)()
         code *= "push!(txts, txt);"
     end
     println("generated tmp code")
-    println(code)
+    @show code
     return code
 end
 
