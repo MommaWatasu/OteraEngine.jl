@@ -91,7 +91,6 @@ function (Tmp::Template)(; tmp_init::Dict{String, S}=Dict{String, Any}(), jl_ini
         throw(TemplateError("$e has occurred during processing tmp code blocks. if you can't find any problems in your template, please report issue on https://github.com/MommaWatasu/OteraEngine.jl/issues."))
     end
     for (i, txt) in enumerate(txts)
-        @show txt
         out_txt = replace(out_txt, "<tmpcode$i>"=>txt)
     end
     current_env = Base.active_project()
