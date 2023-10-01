@@ -83,6 +83,8 @@ function (Tmp::Template)(; tmp_init::Dict{String, S}=Dict{String, Any}(), jl_ini
         tmp_def*=tmp_code()
     end
     tmp_def*="end"
+    println("tmp def")
+    @show tmp_def
     eval(Meta.parse(tmp_def))
     txts = ""
     try

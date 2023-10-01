@@ -37,8 +37,6 @@ function (TCB::TmpCodeBlock)()
     if length(TCB.contents) != 1
         code *= "push!(txts, txt);"
     end
-    println("generated tmp code")
-    @show code
     return code
 end
 
