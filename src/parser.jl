@@ -31,6 +31,7 @@ function (TCB::TmpCodeBlock)()
         if typeof(content) == TmpStatement
             code *= (content.st*";")
         else
+            @show apply_variables(content)
             code *= ("txt *= \"$(apply_variables(content))\";")
         end
     end
@@ -116,9 +117,6 @@ function parse_template(txt::String, config::ParserConfig)
             if depth == 0
                 out_txt *= string(lstrip(txt[idx:i-1]))
             else
-                @show txt[idx:i-1]
-                @show lstrip(txt[idx:i-1])
-                @show string(lstrip(txt[idx:i-1]))
                 push!(block, string(lstrip(txt[idx:i-1])))
             end
             tmp_pos = i
