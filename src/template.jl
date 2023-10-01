@@ -12,7 +12,7 @@ After you create a Template, you just have to execute the codes! For this, you u
 
 # Example
 This is a simple usage:
-```jldoctest
+```julia-repl
 julia> using OteraEngine
 julia> txt = "```using Dates; now()```. Hello {{ usr }}!"
 julia> tmp = Template(txt, path = false)

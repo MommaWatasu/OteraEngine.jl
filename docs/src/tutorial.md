@@ -82,6 +82,8 @@ these statement is available:
 - `end` : represent the end of a statement. this is necessary for `if`, `for`, `with`.
 these code will be executed after transformed to julia code. So the basic syntax is the same as Julia.
 
+!!! warning If you write code includes escape sequence, they will disappear except `\n`. This is not the problem in many cases, but if you want to do it, please let me know in issue.
+
 And you can also insert variables in the text. Here is an example(`tmp_init = Dict("name"=>"watasu")`):
 ```
 #input
