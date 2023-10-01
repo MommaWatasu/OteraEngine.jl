@@ -31,13 +31,14 @@ function (TCB::TmpCodeBlock)()
         if typeof(content) == TmpStatement
             code *= (content.st*";")
         else
-            @show apply_variables(content)
             code *= ("txt *= \"$(apply_variables(content))\";")
         end
     end
     if length(TCB.contents) != 1
         code *= "push!(txts, txt);"
     end
+    println("generated tmp code")
+    println(code)
     return code
 end
 
