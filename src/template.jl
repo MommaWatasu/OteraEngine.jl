@@ -83,8 +83,10 @@ function (Tmp::Template)(; tmp_init::Dict{String, S}=Dict{String, Any}(), jl_ini
         tmp_def*=tmp_code()
     end
     tmp_def*="end"
-    println("tmp def")
-    @show tmp_def
+    # escape sequence is processed here and they don't remain in function except `\n`.
+    # If I have to aplly those escape sequence, I sohuld replace them like this:
+    # \r -> \\r
+    # And the same this occurs in jl code block
     eval(Meta.parse(tmp_def))
     txts = ""
     try
