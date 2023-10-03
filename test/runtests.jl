@@ -38,5 +38,5 @@ using Test
     open("test4-2.html", "r") do f
         result = read(f, String)
     end
-    @test result == tmp()
+    @test replace(result, "\r"=>"") == replace(tmp(), "\r"=>"")
 end

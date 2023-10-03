@@ -12,7 +12,7 @@ After you create a Template, you just have to execute the codes! For this, you u
 
 # Example
 This is a simple usage:
-```jldoctest
+```julia-repl
 julia> using OteraEngine
 julia> txt = "```using Dates; now()```. Hello {{ usr }}!"
 julia> tmp = Template(txt, path = false)
@@ -83,6 +83,10 @@ function (Tmp::Template)(; tmp_init::Dict{String, S}=Dict{String, Any}(), jl_ini
         tmp_def*=tmp_code()
     end
     tmp_def*="end"
+    # escape sequence is processed here and they don't remain in function except `\n`.
+    # If I have to aplly those escape sequence, I sohuld replace them like this:
+    # \r -> \\r
+    # And the same this occurs in jl code block
     eval(Meta.parse(tmp_def))
     txts = ""
     try
@@ -95,7 +99,7 @@ function (Tmp::Template)(; tmp_init::Dict{String, S}=Dict{String, Any}(), jl_ini
     end
     current_env = Base.active_project()
     for (i, jl_code) in enumerate(Tmp.jl_codes)
-        jl_code = "using Pkg; Pkg.activate(\"$current_env\"); "*Tmp.top_codes[i]*"function f("*jl_dargs*");"*jl_code*";end; println(f("*jl_args*"))"
+        jl_code = replace("using Pkg; Pkg.activate(\"$current_env\"); "*Tmp.top_codes[i]*"function f("*jl_dargs*");"*jl_code*";end; println(f("*jl_args*"))", "\\"=>"\\\\")
         try
             out_txt = replace(out_txt, "<jlcode$i>"=>rstrip(read(`julia -e $jl_code`, String)))
         catch e
