@@ -71,7 +71,7 @@ The second way is to use Jinja like syntax. Have you ever seen template like thi
         Hello 9
         Hello 10
         and your age is 15.
-        </body>
+    </body>
 </html>
 ```
 these statement is available:
