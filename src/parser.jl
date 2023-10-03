@@ -60,6 +60,7 @@ function parse_template(txt::String, config::ParserConfig)
     # the number of blocks
     block_counts = ones(Int, 2)
     # index of the template
+    eob_idx = 1
     idx = 1
     # end of block: this variable is used to remove the extra escape sequence from the end of the tmp code blocks
     eob = false
@@ -78,6 +79,7 @@ function parse_template(txt::String, config::ParserConfig)
             if txt[min(end, i+tmp_block_len[2])] in ['\t', '\n', ' ']
                 idx += 1
             else
+                out_txt *= txt[eob_idx:idx]
                 idx += 1
                 eob = false
             end
@@ -114,9 +116,9 @@ function parse_template(txt::String, config::ParserConfig)
                 throw(ParserError("invaild code block! code block can't be in another code block."))
             end
             if depth == 0
-                out_txt *= string(lstrip(txt[idx:i-1]))
+                out_txt *= string(rstrip(txt[idx:i-1]))
             else
-                push!(block, string(lstrip(txt[idx:i-1])))
+                push!(block, string(rstrip(txt[idx:i-1])))
             end
             tmp_pos = i
         # end of tmp code blocks
@@ -138,9 +140,11 @@ function parse_template(txt::String, config::ParserConfig)
                 if depth == 0
                     push!(tmp_codes, TmpCodeBlock(block))
                     block = Array{Union{String, TmpStatement}}(undef, 0)
+                    out_txt = string(rstrip(out_txt))
                     out_txt *= "<tmpcode$(block_counts[2])>"
                     block_counts[2] += 1
                     tmp_pos = 0
+                    eob_idx = i+tmp_block_len[1]
                     eob = true
                 end
             else
