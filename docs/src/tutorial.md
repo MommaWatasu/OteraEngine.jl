@@ -16,7 +16,7 @@ Template
 ```
 Learn about grammer and configuration in the sections below.
 
-### Syntax
+### Base Syntax
 Actually, you have two way to write template. The first way is to write the code in julia. This is example:
 ```
 <html>
@@ -97,6 +97,75 @@ the variables inside
 {{...}}
 ```
 is replaced with values defined in `tmp_init` or template code.
+
+### Include Template
+You can include template with `{% include "(template filename)" %}` code block. This is the tiny example:
+```
+#=This is the included template(test2.html)=#
+Hello everyone! My name is watasu.
+```
+```
+#=This is the main template=#
+{% include "test2.html" %}
+Today, I'd like to introduce OteraEngine.jl
+```
+
+!!! warning "Template filename have to be enclosed with double quotation mark"
+    Template filename have to be like this: `"test.html"`. Otherwise, parser returns error.
+
+This code block is also available inside the `{% block %}` explained in next section.
+
+### Extend Template
+When you build large web app with OteraEngine, you may want to use "template of template". This is possible with `{% extends %}` code block.
+This code block have to be located at the top of the document, otherwise ignored. This is the example:
+```
+#=This is the base template(test2.html)=#
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>test for extends</title>
+    </head>
+    <body>
+        <div>
+            {% block body %}
+            {% endblock %}
+        </div>
+    </body>
+</html>
+```
+```
+#=This is the main template=#
+{% extends "test2.html" %}
+{% block body %}
+            <h1>hello</h1>
+            <div>
+                <p>some content here.</p>
+            </div>
+{% endblock %}
+```
+```
+#=Output=#
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>test for extends</title>
+    </head>
+    <body>
+        <div>
+            <h1>hello</h1>
+            <div>
+                <p>some content here.</p>
+            </div>
+        </div>
+    </body>
+</html>
+```
+
+!!! warning "Template filename have to be enclosed with double quotation mark"
+    Template filename have to be like this: `"test.html"`. Otherwise, parser returns error.
+
+If you write `{% extends (template filename) %}` in main template, parser will use `(template filename)` as the base template.
+And, you can write blocks in the main template with `{% block (block name) %}` and `{% endblock %}`.
 
 ### Configurations
 there are six configurations:
