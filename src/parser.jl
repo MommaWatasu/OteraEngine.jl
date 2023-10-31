@@ -73,7 +73,8 @@ function parse_template(txt::String, config::ParserConfig)
     out_txt = ""
     
     # main loop
-    for i in 1 : length(txt)
+    i = 1
+    while i <= length(txt)
         # remove the extra escape sequence after the end of the tmp code blocks
         if eob
             if txt[min(end, i+tmp_block_len[2])] in ['\t', '\n', ' ']
@@ -123,7 +124,7 @@ function parse_template(txt::String, config::ParserConfig)
             tmp_pos = i
         # end of tmp code blocks
         elseif txt[i:min(end, i+tmp_block_len[2]-1)] == config.tmp_code_block[2]
-            code = strip(txt[tmp_pos+tmp_block_len[1]+1:i-1])
+            code = strip(txt[tmp_pos+tmp_block_len[1]:i-1])
             operator = split(code)[1]
             if operator == "set"
                 if length(block) == 0
@@ -131,6 +132,28 @@ function parse_template(txt::String, config::ParserConfig)
                 else
                     push!(block, TmpStatement(code[4:end]))
                 end
+            elseif operator == "extends" && out_txt == ""
+                file_name = strip(code[8:end])
+                if file_name[1] == file_name[end] == '\"'
+                    blocks, block_dict = parse_block(txt[i+tmp_block_len[2]:end], config)
+                    open(file_name[2:end-1], "r") do f
+                        txt = assign_blocks(read(f, String), blocks, block_dict, config)
+                    end
+                else
+                    throw(ParserError("failed to read $file_name: file name have to be enclosed in double quotation marks"))
+                end
+                i = 1
+                continue 
+            elseif operator == "include"
+                file_name = strip(code[8:end])
+                if file_name[1] == file_name[end] == '\"'
+                    open(file_name[2:end-1], "r") do f
+                        txt = txt[1:tmp_pos-1] * lstrip(read(f, String)) * txt[i+tmp_block_len[2]:end]
+                    end
+                else
+                    throw(ParserError("failed to include $file_name: file name have to be enclosed in double quotation marks"))
+                end
+                i = tmp_pos-1
             elseif operator == "end"
                 if depth == 0
                     throw(ParserError("`end` block was found despite the depth of the code is 0."))
@@ -157,9 +180,112 @@ function parse_template(txt::String, config::ParserConfig)
             end
             idx = i + tmp_block_len[2]
         end
+        i += 1
     end
     out_txt *= txt[idx:end]
     return out_txt, top_codes, jl_codes, tmp_codes
+end
+
+function parse_block(txt::String, config::ParserConfig)
+    tmp_block_len = length.(config.tmp_code_block)
+    # array containing blocks
+    blocks = Array{String}(undef, 0)
+    # dictionary containing pairs which represent the block name and index of the block
+    block_dict = Dict{String, Int}()
+    # block name
+    name = ""
+    # index used to point start or end of code block
+    idx = 1
+    tmp_pos = 1
+    # whether i is in or out of block
+    in_block = false
+
+    i = 1
+    while i <= length(txt)
+        if txt[i:min(end, i+tmp_block_len[1]-1)] == config.tmp_code_block[1]
+            tmp_pos = i
+        elseif txt[i:min(end, i+tmp_block_len[2]-1)] == config.tmp_code_block[2]
+            code = strip(txt[tmp_pos+tmp_block_len[1]:i-1])
+            if code == "endblock"
+                if !in_block
+                    throw(ParserError("invalid endblock: this endblock has no start of block"))
+                else
+                    in_block = false
+                end
+                push!(blocks, strip(txt[idx:tmp_pos-1]))
+                block_dict[name] = length(blocks)
+            end
+            tokens = split(code)
+            if tokens[1] == "block"
+                if in_block
+                    throw(ParserError("invalid block: blocks cannot be nested"))
+                else
+                    in_block = true
+                end
+                name = tokens[2]
+                idx = i+tmp_block_len[2]
+            elseif tokens[1] == "include"
+                file_name = tokens[2]
+                if file_name[1] == file_name[end] == '\"'
+                    open(file_name[2:end-1], "r") do f
+                        txt = txt[1:tmp_pos-1] * lstrip(read(f, String)) * txt[i+tmp_block_len[2]:end]
+                    end
+                else
+                    throw(ParserError("failed to include $file_name: file name have to be enclosed in double quotation marks"))
+                end
+                i = tmp_pos
+                continue
+            end
+        end
+        i += 1
+    end
+    return blocks, block_dict
+end
+
+function assign_blocks(txt::String, blocks::Array{String}, block_dict::Dict{String, Int}, config::ParserConfig)
+    tmp_block_len = length.(config.tmp_code_block)
+    # block name
+    name = ""
+    # index used to point start or end of code block
+    idx = 1
+    tmp_pos = 1
+    # whether i is in or out of block
+    in_block = false
+
+    i = 1
+    while i <= length(txt)
+        if txt[i:min(end, i+tmp_block_len[1]-1)] == config.tmp_code_block[1]
+            tmp_pos = i
+        elseif txt[i:min(end, i+tmp_block_len[2]-1)] == config.tmp_code_block[2]
+            code = strip(txt[tmp_pos+tmp_block_len[1]:i-1])
+            if code == "endblock"
+                if !in_block
+                    throw(ParserError("invalid endblock: this endblock has no start of block"))
+                else
+                    in_block = false
+                end
+                try
+                    block_content = blocks[block_dict[name]]
+                    txt = txt[1:idx] * block_content * txt[i+tmp_block_len[2]:end]
+                    i = idx + length(block_content) + 1
+                catch
+                    throw(ParserError("failed to insert block: invalid block name"))
+                end
+            end
+            tokens = split(code)
+            if tokens[1] == "block"
+                if in_block
+                    throw(ParserError("invalid block: blocks cannot be nested"))
+                else
+                    in_block = true
+                end
+                name = tokens[2]
+                idx = tmp_pos-1
+            end
+        end
+        i += 1
+    end
+    return txt
 end
 
 # configuration(TOML format) parser
