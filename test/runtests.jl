@@ -2,7 +2,7 @@ using OteraEngine
 using Test
 
 @testset "OteraEngine.jl" begin
-    #When initializing variables directly
+    # When initializing variables directly
     @test_nowarn Template("test1-1.html")
     tmp = Template("test1-1.html")
     result = ""
@@ -11,20 +11,20 @@ using Test
     end
     @test result == tmp(jl_init=Dict("usr"=>"Julia"))
     
-    #In case of no params and specified config
+    # In case of no params and specified config
     tmp = Template("test2.html", config=Dict("jl_block"=>"@@@"))
     regex = r"<strong>\s*(?<value>[0-9]*)\s*?</strong>"
     m = match(regex, tmp())
     @test 0 <= parse(Int, m[:value]) <= 100
     
-    #include config file
+    # include config file
     @test_throws ArgumentError Template("test2.html", config_path="test.conf")
     tmp = Template("test2.html", config_path="test.toml")
     regex = r"<strong>\s*(?<value>[0-9]*)\s*?</strong>"
     m = match(regex, tmp())
     @test 0 <= parse(Int, m[:value]) <= 100
     
-    #check `using` is available
+    # check `using` is available
     tmp = Template("test3-1.html")
     result = ""
     open("test3-2.html", "r") do f
@@ -32,10 +32,25 @@ using Test
     end
     @test result == tmp()
     
-    #check tmp codes work properly
+    # check tmp codes work properly
     tmp = Template("test4-1.html")
     result = ""
     open("test4-2.html", "r") do f
+        result = read(f, String)
+    end
+    @test replace(result, "\r"=>"") == replace(tmp(), "\r"=>"")
+
+    # check `include` is available
+    tmp = Template("test5-1.html")
+    result = ""
+    open("test4-2.html", "r") do f
+        result = read(f, String)
+    end
+    @test replace(result, "\r"=>"") == replace(tmp(), "\r"=>"")
+
+    tmp = Template("test6-1.html")
+    result = ""
+    open("test6-4.html", "r") do f
         result = read(f, String)
     end
     @test replace(result, "\r"=>"") == replace(tmp(), "\r"=>"")
