@@ -1,7 +1,7 @@
 name = "OteraEngine"
 uuid = "b2d7f28f-acd6-4007-8b26-bc27716e5513"
 authors = ["Momma Watasu"]
-version = "0.2.6"
+version = "0.2.7"
 
 [deps]
 Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
