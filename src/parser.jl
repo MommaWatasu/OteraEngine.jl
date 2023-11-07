@@ -2,11 +2,13 @@ struct ParserConfig
     jl_code_block::String
     tmp_code_block::Tuple{String, String}
     variable_block::Tuple{String, String}
+    dir::String
     function ParserConfig(config::Dict{String, String})
         return new(
             config["jl_block"],
             (config["tmp_block_start"], config["tmp_block_stop"]),
-            (config["variable_block_start"], config["variable_block_stop"])
+            (config["variable_block_start"], config["variable_block_stop"]),
+            config["dir"]
         )
     end
 end
@@ -136,7 +138,7 @@ function parse_template(txt::String, config::ParserConfig)
                 file_name = strip(code[8:end])
                 if file_name[1] == file_name[end] == '\"'
                     blocks, block_dict = parse_block(txt[i+tmp_block_len[2]:end], config)
-                    open(file_name[2:end-1], "r") do f
+                    open(config.dir*"/"*file_name[2:end-1], "r") do f
                         txt = assign_blocks(read(f, String), blocks, block_dict, config)
                     end
                 else
@@ -147,7 +149,7 @@ function parse_template(txt::String, config::ParserConfig)
             elseif operator == "include"
                 file_name = strip(code[8:end])
                 if file_name[1] == file_name[end] == '\"'
-                    open(file_name[2:end-1], "r") do f
+                    open(config.dir*"/"*file_name[2:end-1], "r") do f
                         txt = txt[1:tmp_pos-1] * lstrip(read(f, String)) * txt[i+tmp_block_len[2]:end]
                     end
                 else

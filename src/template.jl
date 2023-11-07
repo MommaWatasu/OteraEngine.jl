@@ -29,6 +29,14 @@ struct Template
 end
 
 function Template(txt::String; path::Bool=true, config_path::String="", config::Dict{String, String} = Dict{String, String}())
+    dir = pwd()
+    if path
+        if dirname(txt) == ""
+            dir = "."
+        else
+            dir = dirname(txt)
+        end
+    end
     if path
         open(txt, "r") do f
             txt = read(f, String)
@@ -45,7 +53,8 @@ function Template(txt::String; path::Bool=true, config_path::String="", config::
         "tmp_block_start"=>"{%",
         "tmp_block_stop"=>"%}",
         "variable_block_start"=>"{{",
-        "variable_block_stop"=>"}}"
+        "variable_block_stop"=>"}}",
+        "dir" => dir
     )
     for key in keys(config)
         config_dict[key] = config[key]
