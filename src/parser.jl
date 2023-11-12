@@ -1,13 +1,22 @@
 struct ParserConfig
-    jl_code_block::String
-    tmp_code_block::Tuple{String, String}
-    variable_block::Tuple{String, String}
+    control_block::Tuple{String, String}
+    expression_block::Tuple{String, String}
+    comment_block::Tuple{String, String}
+    space_control::Bool
+    lstrip_blocks::Bool
+    trim_blocks::Bool
     dir::String
-    function ParserConfig(config::Dict{String, String})
+    function ParserConfig(config::Dict{String, Union{String, Bool}})
+        if config["space_control"] && (config["lstrip_blocks"] || config["trim_blocks"])
+            throw(ParserError("ParserConfig is broken: lstrip_blocks and trim_blocks should be disabled when space_control"))
+        end
         return new(
-            config["jl_block"],
-            (config["tmp_block_start"], config["tmp_block_stop"]),
-            (config["variable_block_start"], config["variable_block_stop"]),
+            (config["control_block_start"], config["control_block_end"]),
+            (config["expression_block_start"], config["expression_block_end"]),
+            (config["comment_block_start"], config["comment_block_end"]),
+            config["space_control"],
+            config["lstrip_blocks"],
+            config["trim_blocks"],
             config["dir"]
         )
     end
@@ -19,12 +28,16 @@ end
 
 Base.showerror(io::IO, e::ParserError) = print(io, "ParserError: "*e.msg)
 
+struct RawText
+    txt::String
+end
+
 struct TmpStatement
     st::String
 end
 
 struct TmpCodeBlock
-    contents::Array{Union{String, TmpStatement}, 1}
+    contents::Array{Union{String, RawText, TmpStatement}, 1}
 end
 
 function (TCB::TmpCodeBlock)()
@@ -32,6 +45,8 @@ function (TCB::TmpCodeBlock)()
     for content in TCB.contents
         if typeof(content) == TmpStatement
             code *= (content.st*";")
+        elseif typeof(content) == RawText
+            code *= ("txt *= $(content.txt)")
         else
             code *= ("txt *= \"$(apply_variables(content))\";")
         end
@@ -49,245 +64,449 @@ function apply_variables(content)
     return content
 end
 
+function regex_escape(txt)
+    replace(txt, r"(?<escape>\(|\)|\[|\]|\{|\}|\.|\?|\+|\*|\||\\)" => s"\\\g<escape>")
+end
+
+function parse_meta(txt::String, config::ParserConfig)
+    # dict to check tokens
+    block_tokens = Dict(
+        config.control_block[1] => config.control_block[2],
+        config.comment_block[1] => config.comment_block[2]
+    )
+    # length of the code blocks start/end token
+    control_block_len = length(config.control_block)
+    # variables for lstrip and trim
+    lstrip_block = nothing
+    trim_block = nothing
+    # processed text
+    out_txt = ""
+    # parent template
+    super = nothing
+    # idx to use add strings into out_txt
+    idx = 1
+    # variables for macro
+    macros = Dict{String, String}()
+    macro_def = ""
+
+    re = Regex("(?<left_nl>\\n*)(?<left_space>\\s*?)(?<left_token>($(regex_escape(config.control_block[1]))|$(regex_escape(config.comment_block[1]))))(?<code>.*?)(?<right_token>($(regex_escape(config.control_block[2]))|$(regex_escape(config.comment_block[2]))))(?<right_nl>\\n?)")
+    for m in eachmatch(re, txt)
+        if block_tokens[m[:left_token]] != m[:right_token]
+            throw(ParserError("token mismatch: beginning and end of the block doesn't match"))
+        end
+        if m[:left_token] == config.control_block[1]
+            code = m[:code]
+            # check space control configuration
+            if !config.space_control
+                if code[1] == "-"
+                    lstrip_block = true
+                    code = code[2:end]
+                elseif code[1] == "+"
+                    lstrip_block = false
+                    code = code[2:end]
+                else
+                    lstrip_block = config.lstrip_blocks
+                end
+                if code[end] == "-"
+                    trim_block = true
+                    code = code[1:end-1]
+                elseif code[end] == "+"
+                    trim_block = false
+                    code = code[1:end-1]
+                else
+                    trim_block = config.trim_blocks
+                end
+            end
+
+            code = strip(code)
+            tokens = split(code)
+            operator = tokens[1]
+            
+            if !(operator in ["extends", "include", "import", "macro", "endmacro"])
+                continue
+            end
+
+            # space control
+            new_txt = ""
+            if config.space_control
+                new_txt = txt[idx:m.offset-1]
+                idx = m.offset + length(m.match) - length(m[:right_nl])
+            end
+            if lstrip_block == true
+                new_txt = txt[idx:m.offset-1]*m[:left_nl]
+            elseif lstrip_block == false
+                new_txt = txt[idx:m.offset-1]*m[:left_nl]*m[:left_space]
+            end
+            if trim_block == true
+                idx = m.offset + length(m.match)
+            elseif trim_block == false
+                idx = m.offset + length(m.match) - length(m[:right_nl])
+            end
+
+            # check if the template has a parent
+            if operator == "extends"
+                # add text before the block
+                out_txt *= new_txt
+                
+                if m.offset != 1
+                    throw(ParserError("invalid extends block: `extends` block have to be top of the template"))
+                end
+                file_name = strip(code[8:end])
+                if file_name[1] == file_name[end] == '\"'
+                    super = Template(config.dir*"/"*file_name[2:end-1], config)
+                else
+                    throw(ParserError("failed to read $file_name: file name have to be enclosed in double quotation marks"))
+                end
+            # include external template
+            elseif operator == "include"
+                # add text before the block
+                out_txt *= new_txt
+                file_name = strip(code[8:end])
+                if file_name[1] == file_name[end] == '\"'
+                    open(config.dir*"/"*file_name[2:end-1], "r") do f
+                        parse_template(read(f, String), config)#add new elements into the current variables
+                    end
+                else
+                    throw(ParserError("failed to include $file_name: file name have to be enclosed in double quotation marks"))
+                end
+            elseif operator == "from"
+                import_st = match(r"from\s*(?<file_name>.*?)\s*import(?<body>.*)", code)
+                if isnothing(import_st)
+                    throw(ParserError("incorrect `import` block: your import block is broken. please look at the docs for detail."))
+                end
+                file_name = import_st[:file_name]
+                external_macros = Dict()
+                open(config.dir*"/"*file_name[2:end-1], "r") do f
+                    external_macros = parse_meta(read(f, String), config)[3]
+                    for em in external_macros
+                        macros[alias*"."*p[1]] = em[2]
+                    end
+                end
+                for macro_name in split(import_st[:body], ",")
+                    def_element = split(macro_name)
+                    if length(def_element) == 1
+                        if haskey(external_macros, def_element[1])
+                            macros[def_element[1]] = external_macros[def_element[1]]
+                        else
+                            @warn "failed to impoer external macro named $(def_element[1])"
+                        end
+                    elseif length(def_element) == 3
+                        if haskey(external_macros, def_element[1])
+                            macros[def_element[3]] = external_macros[def_element[1]]
+                        else
+                            @warn "failed to impoer external macro named $(def_element[1])"
+                        end
+                    else
+                        throw(ParserError("incorrect `import` block: your import block is broken. please look at the docs for detail."))
+                    end
+                end
+            elseif operator == "import"
+                out_txt *= new_txt
+                file_name = tokens[2]
+                if tokens[3] != "as"
+                    throw(ParserError("incorrect `import` block: your import block is broken. please look at the docs for detail."))
+                end
+                alias = tokens[4]
+                if file_name[1] == file_name[end] == '\"'
+                    open(config.dir*"/"*file_name[2:end-1], "r") do f
+                        external_macros = parse_meta(read(f, String), config)[3]
+                        for em in external_macros
+                            macros[alias*"."*p[1]] = em[2]
+                        end
+                    end
+                else
+                    throw(ParserError("failed to import macro from $file_name: file name have to be enclosed in double quotation marks"))
+                end
+            elseif operator == "macro"
+                # add text before the block
+                out_txt *= new_txt
+                macro_def = string(lstrip(code[6:end]))
+            elseif operator == "endmacro"
+                macros[get_macro_name(macro_def)] = build_macro(macro_def, new_txt)
+            end
+
+        # remove comment block
+        else
+            out_txt *= txt[idx:m.offset-1]
+            idx = m.offset + length(m.match) - length(m[:right_nl])
+        end
+    end
+    out_txt *= txt[idx:end]
+    out_txt = apply_macros(out_txt, macros, config)
+    return super, out_txt, macros
+end
+
+get_macro_name(macro_def) = match(r"(?<name>.*?)\(.*?\)", macro_def)[:name]
+
+function build_macro(macro_def::String, txt::String)
+    arg_names = [match(r"\S[^=]*", arg).match for arg in split(match(r"\((?<args>.*?)\)", macro_def)[:args], ",")]
+    out_txt = ""
+    idx = 1
+    for m in eachmatch(r"\{\{\s*(?<variable>.*?)\s*\}\}", txt)
+        if m[:variable] in arg_names
+            out_txt *= (txt[idx:m.offset-1] * "\$" * m[:variable])
+            idx = m.offset + length(m.match)
+        end
+    end
+    out_txt *= txt[idx:end]
+    return "_" * get_macro_name(macro_def) * "_" * match(r"\(.*\)", macro_def).match * "=\"\"\"" * out_txt * "\"\"\""
+end
+
+function apply_macros(txt::String, macros::Dict{String, String}, config::ParserConfig)
+    for func_def in values(macros)
+        eval(Meta.parse(func_def))
+    end
+    re = Regex("$(config.expression_block[1])\\s*(?<name>.*?)(?<body>\\(.*?\\))\\s*$(config.expression_block[2])")
+    m = match(re, txt)
+    println(macros, m[:name])
+    while !isnothing(m)
+        if haskey(macros, m[:name])
+            println("@invokelatest _"*split(m[:name], ".")[end]*"_"*m[:body])
+            try
+                txt = txt[1:m.offset-1]*eval(Meta.parse("@invokelatest _"*split(m[:name], ".")[end]*"_"*m[:body]))*txt[m.offset+length(m.match):end]
+            catch
+                throw(ParserError("invalid macro: failed to call macro in $(m.match)"))
+            end
+        end
+        m = match(re, txt)
+    end
+    return txt
+end
+
 ## template parser
 function parse_template(txt::String, config::ParserConfig)
-    # length of the code blocks start/end token
-    jl_block_len = length(config.jl_code_block)
-    tmp_block_len = length.(config.tmp_code_block)
+    # process meta information
+    super, txt, _ = parse_meta(txt, config)
 
-    # pointers into the start of the code blocks
-    jl_pos, tmp_pos = zeros(Int, 2)
+    # dict to check tokens
+    block_tokens = Dict(
+        config.control_block[1] => config.control_block[2],
+        config.expression_block[1] => config.expression_block[2],
+        config.comment_block[1] => config.comment_block[2]
+    )
+    # length of the code blocks start/end token
+    control_block_len = length(config.control_block)
+    expression_block_len = length.(config.expression_block)
+    comment_block_len = length.(config.comment_block)
+    # variables for lstrip and trim
+    lstrip_block = nothing
+    trim_block = nothing
+    # names for blocks
+    block_name = ""
+    # variable to check whether inside of raw block or not
+    raw = false
+    # variable to represent whether macro is valid or not
+    macro_def = true
     # code block depth
     depth = 0
     # the number of blocks
-    block_counts = ones(Int, 2)
+    block_count = 1
     # index of the template
-    eob_idx = 1
     idx = 1
-    # end of block: this variable is used to remove the extra escape sequence from the end of the tmp code blocks
-    eob = false
 
     # prepare the arrays to store the code blocks
     jl_codes = Array{String}(undef, 0)
     top_codes = Array{String}(undef, 0)
     tmp_codes = Array{TmpCodeBlock}(undef, 0)
-    block = Array{Union{String, TmpStatement}}(undef, 0)
+    block = Array{Union{String, RawText, TmpStatement}}(undef, 0)
     out_txt = ""
     
-    # main loop
-    i = 1
-    while i <= length(txt)
-        # remove the extra escape sequence after the end of the tmp code blocks
-        if eob
-            if txt[min(end, i+tmp_block_len[2])] in ['\t', '\n', ' ']
-                idx += 1
-            else
-                out_txt *= txt[eob_idx:idx]
-                idx += 1
-                eob = false
-            end
+    re = Regex("(?<left_nl>\\n*)\\s*?(?<left_token>($(regex_escape(config.control_block[1]))|$(regex_escape(config.expression_block[1]))|$(regex_escape(config.comment_block[1]))))(?<code>.*?)(?<right_token>($(regex_escape(config.control_block[2]))|$(regex_escape(config.expression_block[2]))|$(regex_escape(config.comment_block[2]))))(?<right_nl>\\n?)")
+    for m in eachmatch(re, txt)
+        if block_tokens[m[:left_token]] != m[:right_token]
+            throw(ParserError("token mismatch: beginning and end of the block doesn't match"))
         end
-        
-        #jl code block
-        if txt[i:min(end, i+jl_block_len-1)] == config.jl_code_block
-            if tmp_pos != 0
-                throw(ParserError("invaild jl code block! code block can't be in another code block."))
-            # start of jl code blocks
-            elseif jl_pos == 0
-                jl_pos = i
-                out_txt *= txt[idx:i-1]
-            # end of jl code blocks
-            elseif jl_pos != 0
-                code = txt[jl_pos+jl_block_len:i-1]
-                top_regex = r"(using|import)\s.*[\n, ;]"
-                result = eachmatch(top_regex, code)
-                tops = ""
-                for t in result
-                    tops *= t.match
-                    code = replace(code, t.match=>"")
+
+        # control block
+        if m[:left_token] == config.control_block[1]
+            code = m[:code]
+            # check space control configuration
+            if !config.space_control
+                if code[1] == "-"
+                    lstrip_block = true
+                    code = code[2:end]
+                elseif code[1] == "+"
+                    lstrip_block = false
+                    code = code[2:end]
+                else
+                    lstrip_block = config.lstrip_blocks
                 end
-                push!(top_codes, tops)
-                push!(jl_codes, code)
-                out_txt*="<jlcode$(block_counts[1])>"
-                block_counts[1] += 1
-                idx = i + jl_block_len
-                jl_pos = 0
+                if code[end] == "-"
+                    trim_block = true
+                    code = code[1:end-1]
+                elseif code[end] == "+"
+                    trim_block = false
+                    code = code[1:end-1]
+                else
+                    trim_block = config.trim_blocks
+                end
             end
-        # start of the tmp code blocks
-        elseif txt[i:min(end, i+tmp_block_len[1]-1)] == config.tmp_code_block[1]
-            if jl_pos != 0
-                throw(ParserError("invaild code block! code block can't be in another code block."))
+
+            code = strip(code)
+            tokens = split(code)
+            operator = tokens[1]
+
+            # process raw code block
+            if raw
+                if operator == "endraw"
+                    raw = false
+                    # space control
+                    new_txt = ""
+                    if config.space_control
+                        new_txt = txt[idx:m.offset-1]
+                        idx = m.offset + length(m.match) - length(m[:right_nl])
+                    end
+                    if lstrip_block == true
+                        new_txt = txt[idx:m.offset-1]*m[:left_nl]
+                    elseif lstrip_block == false
+                        new_txt = txt[idx:m.offset-1]*m[:left_nl]*m[:left_space]
+                    end
+                    if trim_block == true
+                        idx = m.offset + length(m.match)
+                    elseif trim_block == false
+                        idx = m.offset + length(m.match) - length(m[:right_nl])
+                    end
+                    # check depth
+                    if depth == 0
+                        out_txt *= new_txt
+                    else
+                        push!(block, RawText(new_txt))
+                    end
+                    continue
+                else
+                    continue
+                end
             end
+
+            # space control
+            new_txt = ""
+            if config.space_control
+                new_txt = txt[idx:m.offset-1]
+                idx = m.offset + length(m.match) - length(m[:right_nl])
+            end
+            if lstrip_block == true
+                new_txt = txt[idx:m.offset-1]*m[:left_nl]
+            elseif lstrip_block == false
+                new_txt = txt[idx:m.offset-1]*m[:left_nl]*m[:left_space]
+            end
+            if trim_block == true
+                idx = m.offset + length(m.match)
+            elseif trim_block == false
+                idx = m.offset + length(m.match) - length(m[:right_nl])
+            end
+            # check depth
             if depth == 0
-                out_txt *= string(rstrip(txt[idx:i-1]))
+                out_txt *= new_txt
             else
-                push!(block, string(rstrip(txt[idx:i-1])))
+                push!(block, new_txt)
             end
-            tmp_pos = i
-        # end of tmp code blocks
-        elseif txt[i:min(end, i+tmp_block_len[2]-1)] == config.tmp_code_block[2]
-            code = strip(txt[tmp_pos+tmp_block_len[1]:i-1])
-            operator = split(code)[1]
-            if operator == "set"
+
+            if operator == "endblock"
+                depth -= 1
+                continue
+                
+            elseif operator == "block"
+                depth += 1
+                block_name = tokens[2]
+                continue
+                
+            # set raw flag
+            elseif operator == "raw"
+                raw = true
+                continue
+                
+            # assignment for julia
+            elseif operator == "set"
                 if length(block) == 0
                     push!(tmp_codes, TmpCodeBlock([TmpStatement(code[4:end])]))
                 else
-                    push!(block, TmpStatement(code[4:end]))
+                    push!(block, TmpStatement("global "*code))
                 end
-            elseif operator == "extends" && out_txt == ""
-                file_name = strip(code[8:end])
-                if file_name[1] == file_name[end] == '\"'
-                    blocks, block_dict = parse_block(txt[i+tmp_block_len[2]:end], config)
-                    open(config.dir*"/"*file_name[2:end-1], "r") do f
-                        txt = assign_blocks(read(f, String), blocks, block_dict, config)
-                    end
-                else
-                    throw(ParserError("failed to read $file_name: file name have to be enclosed in double quotation marks"))
-                end
-                i = 1
-                continue 
-            elseif operator == "include"
-                file_name = strip(code[8:end])
-                if file_name[1] == file_name[end] == '\"'
-                    open(config.dir*"/"*file_name[2:end-1], "r") do f
-                        txt = txt[1:tmp_pos-1] * lstrip(read(f, String)) * txt[i+tmp_block_len[2]:end]
-                    end
-                else
-                    throw(ParserError("failed to include $file_name: file name have to be enclosed in double quotation marks"))
-                end
-                i = tmp_pos-1
+
+            # end for julia statement
             elseif operator == "end"
                 if depth == 0
-                    throw(ParserError("`end` block was found despite the depth of the code is 0."))
+                    throw(ParserError("end is found at block depth 0"))
                 end
                 depth -= 1
                 push!(block, TmpStatement("end"))
                 if depth == 0
                     push!(tmp_codes, TmpCodeBlock(block))
-                    block = Array{Union{String, TmpStatement}}(undef, 0)
-                    out_txt = string(rstrip(out_txt))
-                    out_txt *= "<tmpcode$(block_counts[2])>"
-                    block_counts[2] += 1
-                    tmp_pos = 0
-                    eob_idx = i+tmp_block_len[1]
-                    eob = true
+                    block = Array{Union{String, RawText, TmpStatement}}(undef, 0)
+                    out_txt *= "<tmpcode$block_count>"
+                    block_count += 1
                 end
+
+            # julia statement
             else
+                if !(operator in ["for", "while", "if", "let"])
+                    throw(ParserError("This block is invalid: {$(m[:left_token])$(m[:code])$(m[:right_token])}"))
+                end
                 depth += 1
-                if operator == "with"
-                    push!(block, TmpStatement("let "*code[5:end]))
+                push!(block, TmpStatement(code))
+                idx = m.offset + length(m.match)
+            end
+        
+        # comment block
+        elseif m[:left_token] == config.comment_block[1]
+            code = m[:code]
+            # check space control configuration
+            if !config.space_control
+                if code[1] == "-"
+                    lstrip_block = true
+                    code = code[2:end]
+                elseif code[1] == "+"
+                    lstrip_block = false
+                    code = code[2:end]
                 else
-                    push!(block, TmpStatement(code))
+                    lstrip_block = config.lstrip_blocks
+                end
+                if code[end] == "-"
+                    trim_block = true
+                    code = code[1:end-1]
+                elseif code[end] == "+"
+                    trim_block = false
+                    code = code[1:end-1]
+                else
+                    trim_block = config.trim_blocks
                 end
             end
-            idx = i + tmp_block_len[2]
+            
+            # space control
+            new_txt = ""
+            if config.space_control
+                new_txt = txt[idx:m.offset-1]
+                idx = m.offset + length(m.match) - length(m[:right_nl])
+            end
+            if lstrip_block
+                new_txt = txt[idx:m.offset-1]*m[:left_nl]
+            else
+                new_txt = txt[idx:m.offset-1]*m[:left_nl]*m[:left_space]
+            end
+            if trim_block
+                idx = m.offset + length(m.match)
+            else
+                idx = m.offset + length(m.match) - length(m[:right_nl])
+            end
+            # check depth
+            if depth == 0
+                out_txt *= new_txt
+            else
+                push!(block, new_txt)
+            end
+        
+        # expression block
+        elseif m[:left_token] == config.expression_block[1]
+            macro_def = false
+            if depth == 0
+            else
+            end
+        else
+            throw(ParserError("This block is invalid: {$(m[:left_token]*" "*m[:code]*" "*m[right_token])}"))
         end
-        i += 1
     end
     out_txt *= txt[idx:end]
-    return out_txt, top_codes, jl_codes, tmp_codes
-end
-
-function parse_block(txt::String, config::ParserConfig)
-    tmp_block_len = length.(config.tmp_code_block)
-    # array containing blocks
-    blocks = Array{String}(undef, 0)
-    # dictionary containing pairs which represent the block name and index of the block
-    block_dict = Dict{String, Int}()
-    # block name
-    name = ""
-    # index used to point start or end of code block
-    idx = 1
-    tmp_pos = 1
-    # whether i is in or out of block
-    in_block = false
-
-    i = 1
-    while i <= length(txt)
-        if txt[i:min(end, i+tmp_block_len[1]-1)] == config.tmp_code_block[1]
-            tmp_pos = i
-        elseif txt[i:min(end, i+tmp_block_len[2]-1)] == config.tmp_code_block[2]
-            code = strip(txt[tmp_pos+tmp_block_len[1]:i-1])
-            if code == "endblock"
-                if !in_block
-                    throw(ParserError("invalid endblock: this endblock has no start of block"))
-                else
-                    in_block = false
-                end
-                push!(blocks, strip(txt[idx:tmp_pos-1]))
-                block_dict[name] = length(blocks)
-            end
-            tokens = split(code)
-            if tokens[1] == "block"
-                if in_block
-                    throw(ParserError("invalid block: blocks cannot be nested"))
-                else
-                    in_block = true
-                end
-                name = tokens[2]
-                idx = i+tmp_block_len[2]
-            elseif tokens[1] == "include"
-                file_name = tokens[2]
-                if file_name[1] == file_name[end] == '\"'
-                    open(file_name[2:end-1], "r") do f
-                        txt = txt[1:tmp_pos-1] * lstrip(read(f, String)) * txt[i+tmp_block_len[2]:end]
-                    end
-                else
-                    throw(ParserError("failed to include $file_name: file name have to be enclosed in double quotation marks"))
-                end
-                i = tmp_pos
-                continue
-            end
-        end
-        i += 1
-    end
-    return blocks, block_dict
-end
-
-function assign_blocks(txt::String, blocks::Array{String}, block_dict::Dict{String, Int}, config::ParserConfig)
-    tmp_block_len = length.(config.tmp_code_block)
-    # block name
-    name = ""
-    # index used to point start or end of code block
-    idx = 1
-    tmp_pos = 1
-    # whether i is in or out of block
-    in_block = false
-
-    i = 1
-    while i <= length(txt)
-        if txt[i:min(end, i+tmp_block_len[1]-1)] == config.tmp_code_block[1]
-            tmp_pos = i
-        elseif txt[i:min(end, i+tmp_block_len[2]-1)] == config.tmp_code_block[2]
-            code = strip(txt[tmp_pos+tmp_block_len[1]:i-1])
-            if code == "endblock"
-                if !in_block
-                    throw(ParserError("invalid endblock: this endblock has no start of block"))
-                else
-                    in_block = false
-                end
-                try
-                    block_content = blocks[block_dict[name]]
-                    txt = txt[1:idx] * block_content * txt[i+tmp_block_len[2]:end]
-                    i = idx + length(block_content) + 1
-                catch
-                    throw(ParserError("failed to insert block: invalid block name"))
-                end
-            end
-            tokens = split(code)
-            if tokens[1] == "block"
-                if in_block
-                    throw(ParserError("invalid block: blocks cannot be nested"))
-                else
-                    in_block = true
-                end
-                name = tokens[2]
-                idx = tmp_pos-1
-            end
-        end
-        i += 1
-    end
-    return txt
+    return super, out_txt, tmp_codes, macros
 end
 
 # configuration(TOML format) parser

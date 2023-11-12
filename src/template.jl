@@ -1,3 +1,7 @@
+struct Macros
+    inner::TmpCodeBlock
+end
+
 """
     Template(txt::String; path::Bool=true, config_path::String="", config::Dict{String, String} = Dict())
 This is the only structure and function of this package.
@@ -21,10 +25,10 @@ julia> tmp(tmp_init = init)
 ```
 """
 struct Template
+    super::Union{nothing, Template}
     txt::String
-    top_codes::Array{String, 1}
-    jl_codes::Array{String, 1}
     tmp_codes::Array{TmpCodeBlock, 1}
+    blocks::Dict{String, String}
     config::ParserConfig
 end
 
@@ -48,12 +52,16 @@ function Template(txt::String; path::Bool=true, config_path::String="", config::
             config[v] = conf_file[v]
         end
     end
-    config_dict = Dict{String, String}(
-        "jl_block"=>"```",
-        "tmp_block_start"=>"{%",
-        "tmp_block_stop"=>"%}",
-        "variable_block_start"=>"{{",
-        "variable_block_stop"=>"}}",
+    config_dict = Dict{String, Union{String, Bool}}(
+        "control_block_start"=>"{%",
+        "control_block_end"=>"%}",
+        "expression_block_start"=>"{{",
+        "expression_block_end"=>"}}",
+        "comment_block_start" => "{#",
+        "comment_block_end" => "#}",
+        "space_control" => true,
+        "lstrip_blocks" => false,
+        "trim_blocks" => false,
         "dir" => dir
     )
     for key in keys(config)
