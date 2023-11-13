@@ -22,6 +22,19 @@ struct ParserConfig
     end
 end
 
+config2dict(config::ParserConfig) = Dict{String, Union{String, Bool}}(
+    "control_block_start" => config.control_block[1],
+    "control_block_end" => config.control_block[2],
+    "expression_block_start" => config.expression_block[1],
+    "expression_block_end" => config.expression_block[2],
+    "comment_block_start" => config.comment_block[1],
+    "comment_block_end" => config.comment_block[2],
+    "space_control" => config.space_control,
+    "lstrip_blocks" => config.lstrip_blocks,
+    "trim_blocks" => config.trim_blocks,
+    "dir" => config.dir
+)
+
 struct ParserError <: Exception
     msg::String
 end
@@ -36,8 +49,17 @@ struct TmpStatement
     st::String
 end
 
+struct TmpBlock
+    name::String
+    contents::Vector{Union{String, RawText, TmpStatement}}
+end
+
+function Base.push!(a::TmpBlock, v::Union{String, RawText, TmpStatement})
+    push!(a.contents, v)
+end
+
 struct TmpCodeBlock
-    contents::Array{Union{String, RawText, TmpStatement}, 1}
+    contents::Vector{Union{String, RawText, TmpStatement, TmpBlock}}
 end
 
 function (TCB::TmpCodeBlock)()
@@ -153,7 +175,7 @@ function parse_meta(txt::String, config::ParserConfig)
                 end
                 file_name = strip(code[8:end])
                 if file_name[1] == file_name[end] == '\"'
-                    super = Template(config.dir*"/"*file_name[2:end-1], config)
+                    super = Template(config.dir*"/"*file_name[2:end-1], config = config2dict(config))
                 else
                     throw(ParserError("failed to read $file_name: file name have to be enclosed in double quotation marks"))
                 end
@@ -258,7 +280,6 @@ function apply_macros(txt::String, macros::Dict{String, String}, config::ParserC
     end
     re = Regex("$(config.expression_block[1])\\s*(?<name>.*?)(?<body>\\(.*?\\))\\s*$(config.expression_block[2])")
     m = match(re, txt)
-    println(macros, m[:name])
     while !isnothing(m)
         if haskey(macros, m[:name])
             println("@invokelatest _"*split(m[:name], ".")[end]*"_"*m[:body])
@@ -291,8 +312,9 @@ function parse_template(txt::String, config::ParserConfig)
     # variables for lstrip and trim
     lstrip_block = nothing
     trim_block = nothing
-    # names for blocks
-    block_name = ""
+    # variables for blocks
+    blocks = Vector{TmpBlock}()
+    in_block = false
     # variable to check whether inside of raw block or not
     raw = false
     # variable to represent whether macro is valid or not
@@ -308,7 +330,7 @@ function parse_template(txt::String, config::ParserConfig)
     jl_codes = Array{String}(undef, 0)
     top_codes = Array{String}(undef, 0)
     tmp_codes = Array{TmpCodeBlock}(undef, 0)
-    block = Array{Union{String, RawText, TmpStatement}}(undef, 0)
+    code_block = Array{Union{String, RawText, TmpStatement, TmpBlock}}(undef, 0)
     out_txt = ""
     
     re = Regex("(?<left_nl>\\n*)\\s*?(?<left_token>($(regex_escape(config.control_block[1]))|$(regex_escape(config.expression_block[1]))|$(regex_escape(config.comment_block[1]))))(?<code>.*?)(?<right_token>($(regex_escape(config.control_block[2]))|$(regex_escape(config.expression_block[2]))|$(regex_escape(config.comment_block[2]))))(?<right_nl>\\n?)")
@@ -367,10 +389,14 @@ function parse_template(txt::String, config::ParserConfig)
                         idx = m.offset + length(m.match) - length(m[:right_nl])
                     end
                     # check depth
-                    if depth == 0
-                        out_txt *= new_txt
+                    if in_block
+                        push!(code_block[end], RawText(new_txt))
                     else
-                        push!(block, RawText(new_txt))
+                        if depth == 0
+                            out_txt *= new_txt
+                        else
+                            push!(code_block, RawText(new_txt))
+                        end
                     end
                     continue
                 else
@@ -395,19 +421,36 @@ function parse_template(txt::String, config::ParserConfig)
                 idx = m.offset + length(m.match) - length(m[:right_nl])
             end
             # check depth
-            if depth == 0
-                out_txt *= new_txt
+            if in_block
+                push!(code_block[end], new_txt)
             else
-                push!(block, new_txt)
+                if depth == 0
+                    out_txt *= new_txt
+                else
+                    push!(code_block, new_txt)
+                end
             end
 
             if operator == "endblock"
-                depth -= 1
+                if !in_block
+                    throw(ParserError("invalid end of block: `endblock`` statement without `block` statement"))
+                end
+                in_block = false
+                push!(blocks, code_block[end])
+                if depth == 0
+                    push!(tmp_codes, TmpCodeBlock(code_block))
+                    code_block = Array{Union{String, RawText, TmpStatement}}(undef, 0)
+                    out_txt *= "<tmpcode$block_count>"
+                    block_count += 1
+                end
                 continue
                 
             elseif operator == "block"
-                depth += 1
-                block_name = tokens[2]
+                if in_block
+                    throw(ParserError("nested block: nested block is invalid"))
+                end
+                in_block = true
+                push!(code_block, TmpBlock(tokens[2], Vector()))
                 continue
                 
             # set raw flag
@@ -417,10 +460,14 @@ function parse_template(txt::String, config::ParserConfig)
                 
             # assignment for julia
             elseif operator == "set"
-                if length(block) == 0
-                    push!(tmp_codes, TmpCodeBlock([TmpStatement(code[4:end])]))
+                if in_block
+                    push!(code_block[end], TmpStatement("global "*code))
                 else
-                    push!(block, TmpStatement("global "*code))
+                    if depth == 0
+                        push!(tmp_codes, TmpCodeBlock([TmpStatement(code[4:end])]))
+                    else
+                        push!(code_block, TmpStatement("global "*code))
+                    end
                 end
 
             # end for julia statement
@@ -428,13 +475,17 @@ function parse_template(txt::String, config::ParserConfig)
                 if depth == 0
                     throw(ParserError("end is found at block depth 0"))
                 end
-                depth -= 1
-                push!(block, TmpStatement("end"))
-                if depth == 0
-                    push!(tmp_codes, TmpCodeBlock(block))
-                    block = Array{Union{String, RawText, TmpStatement}}(undef, 0)
-                    out_txt *= "<tmpcode$block_count>"
-                    block_count += 1
+                if in_block
+                    push!(block[end], TmpStatement("end"))
+                else
+                    depth -= 1
+                    push!(block, TmpStatement("end"))
+                    if depth == 0
+                        push!(tmp_codes, TmpCodeBlock(code_block))
+                        code_block = Array{Union{String, RawText, TmpStatement}}(undef, 0)
+                        out_txt *= "<tmpcode$block_count>"
+                        block_count += 1
+                    end
                 end
 
             # julia statement
@@ -442,57 +493,12 @@ function parse_template(txt::String, config::ParserConfig)
                 if !(operator in ["for", "while", "if", "let"])
                     throw(ParserError("This block is invalid: {$(m[:left_token])$(m[:code])$(m[:right_token])}"))
                 end
-                depth += 1
-                push!(block, TmpStatement(code))
-                idx = m.offset + length(m.match)
-            end
-        
-        # comment block
-        elseif m[:left_token] == config.comment_block[1]
-            code = m[:code]
-            # check space control configuration
-            if !config.space_control
-                if code[1] == "-"
-                    lstrip_block = true
-                    code = code[2:end]
-                elseif code[1] == "+"
-                    lstrip_block = false
-                    code = code[2:end]
+                if in_block
+                    push!(code_block[end], TmpStatement(code))
                 else
-                    lstrip_block = config.lstrip_blocks
+                    depth += 1
+                    push!(code_block, TmpStatement(code))
                 end
-                if code[end] == "-"
-                    trim_block = true
-                    code = code[1:end-1]
-                elseif code[end] == "+"
-                    trim_block = false
-                    code = code[1:end-1]
-                else
-                    trim_block = config.trim_blocks
-                end
-            end
-            
-            # space control
-            new_txt = ""
-            if config.space_control
-                new_txt = txt[idx:m.offset-1]
-                idx = m.offset + length(m.match) - length(m[:right_nl])
-            end
-            if lstrip_block
-                new_txt = txt[idx:m.offset-1]*m[:left_nl]
-            else
-                new_txt = txt[idx:m.offset-1]*m[:left_nl]*m[:left_space]
-            end
-            if trim_block
-                idx = m.offset + length(m.match)
-            else
-                idx = m.offset + length(m.match) - length(m[:right_nl])
-            end
-            # check depth
-            if depth == 0
-                out_txt *= new_txt
-            else
-                push!(block, new_txt)
             end
         
         # expression block
@@ -506,7 +512,7 @@ function parse_template(txt::String, config::ParserConfig)
         end
     end
     out_txt *= txt[idx:end]
-    return super, out_txt, tmp_codes, macros
+    return super, out_txt, tmp_codes, blocks
 end
 
 # configuration(TOML format) parser

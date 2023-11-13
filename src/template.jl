@@ -1,7 +1,3 @@
-struct Macros
-    inner::TmpCodeBlock
-end
-
 """
     Template(txt::String; path::Bool=true, config_path::String="", config::Dict{String, String} = Dict())
 This is the only structure and function of this package.
@@ -25,14 +21,14 @@ julia> tmp(tmp_init = init)
 ```
 """
 struct Template
-    super::Union{nothing, Template}
+    super::Union{Nothing, Template}
     txt::String
     tmp_codes::Array{TmpCodeBlock, 1}
-    blocks::Dict{String, String}
+    blocks::Vector{TmpBlock}
     config::ParserConfig
 end
 
-function Template(txt::String; path::Bool=true, config_path::String="", config::Dict{String, String} = Dict{String, String}())
+function Template(txt::String; path::Bool=true, config_path::String="", config::Dict{String, Union{String, Bool}} = Dict{String, Union{String, Bool}}())
     dir = pwd()
     if path
         if dirname(txt) == ""
