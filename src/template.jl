@@ -73,27 +73,19 @@ end
 
 Base.showerror(io::IO, e::TemplateError) = print(io, "TemplateError: "*e.msg)
 
-function (Tmp::Template)(; tmp_init::Dict{String, S}=Dict{String, Any}(), jl_init::Dict{String, <:Union{AbstractString, Number}}=Dict{String, Union{AbstractString, Number}}()) where {S}
+function (Tmp::Template)(; tmp_init::Dict{String, T}=Dict{String, Any}()) where {T}
+    if Tmp.super !== nothing
+        return Tmp.super(tmp_init, Tmp.blocks)
+    end
     tmp_args = ""
     for v in keys(tmp_init)
         tmp_args*=(v*",")
     end
     
-    jl_dargs = ""
-    jl_args = ""
-    for p in jl_init
-        jl_dargs*=(p[1]*",")
-        if typeof(p[2]) <: Number
-            jl_args*=(p[2]*",")
-        else
-            jl_args*=("\""*p[2]*"\""*",")
-        end
-    end
-    
     out_txt = Tmp.txt
     tmp_def = "function tmp_func("*tmp_args*");txts=Array{String}(undef, 0);"
     for tmp_code in Tmp.tmp_codes
-        tmp_def*=tmp_code()
+        tmp_def*=tmp_code(Tmp.blocks)
     end
     tmp_def*="end"
     # escape sequence is processed here and they don't remain in function except `\n`.
@@ -110,19 +102,52 @@ function (Tmp::Template)(; tmp_init::Dict{String, S}=Dict{String, Any}(), jl_ini
     for (i, txt) in enumerate(txts)
         out_txt = replace(out_txt, "<tmpcode$i>"=>txt)
     end
-    current_env = Base.active_project()
-    for (i, jl_code) in enumerate(Tmp.jl_codes)
-        jl_code = replace("using Pkg; Pkg.activate(\"$current_env\"); "*Tmp.top_codes[i]*"function f("*jl_dargs*");"*jl_code*";end; println(f("*jl_args*"))", "\\"=>"\\\\")
-        try
-            out_txt = replace(out_txt, "<jlcode$i>"=>rstrip(read(`julia -e $jl_code`, String)))
-        catch e
-            throw(TemplateError("$e has occurred during processing jl code blocks. if you can't find any problems in your template, please report issue on https://github.com/MommaWatasu/OteraEngine.jl/issues."))
-        end
-    end
-    return assign_variables(out_txt, tmp_init, Tmp.config.variable_block)
+    
+    return assign_variables(out_txt, tmp_init, Tmp.config.expression_block)
 end
 
-function assign_variables(txt::String, tmp_init::Dict{String, T}, variable_block::Tuple{String, String}) where T
+function (Tmp::Template)(init::Dict{String, T}, blocks::Vector{TmpBlock}) where {T}
+    blocks = inherite_blocks(blocks, Tmp.blocks, Tmp.config.expression_block)
+    if Tmp.super !== nothing
+        Tmp.super(init, blocks)
+    end
+
+    tmp_args = ""
+    for v in keys(init)
+        tmp_args*=(v*",")
+    end
+
+    out_txt = Tmp.txt
+    tmp_def = "function tmp_func("*tmp_args*");txts=Array{String}(undef, 0);"
+    for tmp_code in Tmp.tmp_codes
+        tmp_def*=tmp_code(blocks)
+    end
+    tmp_def*="end"
+
+    eval(Meta.parse(tmp_def))
+    txts = ""
+    try
+        txts = Base.invokelatest(tmp_func, values(init)...)
+    catch e
+        throw(TemplateError("$e has occurred during processing tmp code blocks. if you can't find any problems in your template, please report issue on https://github.com/MommaWatasu/OteraEngine.jl/issues."))
+    end
+    for (i, txt) in enumerate(txts)
+        out_txt = replace(out_txt, "<tmpcode$i>"=>txt)
+    end
+
+    return assign_variables(out_txt, init, Tmp.config.expression_block)
+end
+
+function inherite_blocks(src::Vector{TmpBlock}, dst::Vector{TmpBlock}, expression_block::Tuple{String, String})
+    for i in 1 : length(src)
+        idx = findfirst(x->x.name==src[i].name, dst)
+        idx === nothing && continue
+        dst[idx] = process_super(dst[idx], src[i], expression_block)
+    end
+    return dst
+end
+
+function assign_variables(txt::String, tmp_init::Dict{String, T}, expression_block::Tuple{String, String}) where T
     for m in eachmatch(r"{{\s*(?<variable>[\s\S]*?)\s*?}}", txt)
         if m[:variable] in keys(tmp_init)
             txt = replace(txt, m.match=>tmp_init[m[:variable]])

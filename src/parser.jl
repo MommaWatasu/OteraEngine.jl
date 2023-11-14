@@ -54,17 +54,9 @@ struct TmpBlock
     contents::Vector{Union{String, RawText, TmpStatement}}
 end
 
-function Base.push!(a::TmpBlock, v::Union{String, RawText, TmpStatement})
-    push!(a.contents, v)
-end
-
-struct TmpCodeBlock
-    contents::Vector{Union{String, RawText, TmpStatement, TmpBlock}}
-end
-
-function (TCB::TmpCodeBlock)()
-    code = "txt=\"\";"
-    for content in TCB.contents
+function (TB::TmpBlock)()
+    code = ""
+    for content in TB.contents
         if typeof(content) == TmpStatement
             code *= (content.st*";")
         elseif typeof(content) == RawText
@@ -73,7 +65,50 @@ function (TCB::TmpCodeBlock)()
             code *= ("txt *= \"$(apply_variables(content))\";")
         end
     end
-    if length(TCB.contents) != 1
+    return code
+end
+
+function process_super(parent::TmpBlock, child::TmpBlock, expression_block::Tuple{String, String})
+    for i in 1 : length(child.contents)
+        if typeof(child.contents[i]) == String
+            txt = child.contents[i]
+            re = Regex("$(expression_block[1])\\s*?(?<body>(super.)*)super\\(\\)\\s*$(expression_block[2])")
+            for m in eachmatch(re, txt)
+                if m[:body] == ""
+                    child.contents[i] = txt[1:m.offset-1] * parent.contents * txt[m.offset+length(m.match):end]
+                else
+                    child.contents[i] = txt[1:m.offset-1] * "{{$(m[:body][7:end])super()}}" * txt[m.offset+length(m.match):end]
+                end
+            end
+        end
+    end
+    return child
+end
+
+function Base.push!(a::TmpBlock, v::Union{String, RawText, TmpStatement})
+    push!(a.contents, v)
+end
+
+struct TmpCodeBlock
+    contents::Vector{Union{String, RawText, TmpStatement, TmpBlock}}
+end
+
+function (TCB::TmpCodeBlock)(blocks::Vector{TmpBlock})
+    code = "txt=\"\";"
+    for content in TCB.contents
+        if typeof(content) == TmpStatement
+            code *= (content.st*";")
+        elseif typeof(content) == TmpBlock
+            idx = findfirst(x->x.name==content.name, blocks)
+            idx === nothing && throw(TemplateError("invalid block: failed to appy block named `$(content.name)`"))
+            code *= blocks[idx]()
+        elseif typeof(content) == RawText
+            code *= ("txt *= $(content.txt)")
+        else
+            code *= ("txt *= \"$(apply_variables(content))\";")
+        end
+    end
+    if TCB != TmpCodeBlock([TmpStatement(code[4:end])])
         code *= "push!(txts, txt);"
     end
     return code
@@ -479,7 +514,7 @@ function parse_template(txt::String, config::ParserConfig)
                     push!(block[end], TmpStatement("end"))
                 else
                     depth -= 1
-                    push!(block, TmpStatement("end"))
+                    push!(code_block, TmpStatement("end"))
                     if depth == 0
                         push!(tmp_codes, TmpCodeBlock(code_block))
                         code_block = Array{Union{String, RawText, TmpStatement}}(undef, 0)
