@@ -58,11 +58,11 @@ function (TB::TmpBlock)()
     code = ""
     for content in TB.contents
         if typeof(content) == TmpStatement
-            code *= (content.st*";")
+            code *= "$(content.st);"
         elseif typeof(content) == RawText
-            code *= ("txt *= $(content.txt)")
+            code *= ("txt *= \"$(replace(content.txt, "\""=>"\\\""))\"")
         else
-            code *= ("txt *= \"$(apply_variables(content))\";")
+            code *= ("txt *= \"$(replace(apply_variables(content), "\""=>"\\\""))\";")
         end
     end
     return code
@@ -97,15 +97,15 @@ function (TCB::TmpCodeBlock)(blocks::Vector{TmpBlock})
     code = "txt=\"\";"
     for content in TCB.contents
         if typeof(content) == TmpStatement
-            code *= (content.st*";")
+            code *= "$(content.st);"
         elseif typeof(content) == TmpBlock
             idx = findfirst(x->x.name==content.name, blocks)
             idx === nothing && throw(TemplateError("invalid block: failed to appy block named `$(content.name)`"))
             code *= blocks[idx]()
         elseif typeof(content) == RawText
-            code *= ("txt *= $(content.txt)")
+            code *= ("txt *= raw\"$(replace(content.txt, "\""=>"\\\""))\"")
         else
-            code *= ("txt *= \"$(apply_variables(content))\";")
+            code *= ("txt *= raw\"$(replace(apply_variables(content), "\""=>"\\\""))\";")
         end
     end
     if TCB != TmpCodeBlock([TmpStatement(code[4:end])])
@@ -221,7 +221,7 @@ function parse_meta(txt::String, config::ParserConfig)
                 file_name = strip(code[8:end])
                 if file_name[1] == file_name[end] == '\"'
                     open(config.dir*"/"*file_name[2:end-1], "r") do f
-                        parse_template(read(f, String), config)#add new elements into the current variables
+                        out_txt *= read(f, String)
                     end
                 else
                     throw(ParserError("failed to include $file_name: file name have to be enclosed in double quotation marks"))
@@ -534,6 +534,7 @@ function parse_template(txt::String, config::ParserConfig)
                     depth += 1
                     push!(code_block, TmpStatement(code))
                 end
+                idx = m.offset + length(m.match)
             end
         
         # expression block
