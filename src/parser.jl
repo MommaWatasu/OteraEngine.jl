@@ -423,6 +423,7 @@ function parse_template(txt::String, config::ParserConfig)
                     elseif trim_block == false
                         idx = m.offset + length(m.match) - length(m[:right_nl])
                     end
+                    new_txt = string(rstrip(new_txt))
                     # check depth
                     if in_block
                         push!(code_block[end], RawText(new_txt))
@@ -455,6 +456,7 @@ function parse_template(txt::String, config::ParserConfig)
             elseif trim_block == false
                 idx = m.offset + length(m.match) - length(m[:right_nl])
             end
+            new_txt = string(rstrip(new_txt))
             # check depth
             if in_block
                 push!(code_block[end], new_txt)
@@ -475,6 +477,7 @@ function parse_template(txt::String, config::ParserConfig)
                 if depth == 0
                     push!(tmp_codes, TmpCodeBlock(code_block))
                     code_block = Array{Union{String, RawText, TmpStatement}}(undef, 0)
+                    out_txt = string(rstrip(out_txt))
                     out_txt *= "<tmpcode$block_count>"
                     block_count += 1
                 end
@@ -518,6 +521,7 @@ function parse_template(txt::String, config::ParserConfig)
                     if depth == 0
                         push!(tmp_codes, TmpCodeBlock(code_block))
                         code_block = Array{Union{String, RawText, TmpStatement}}(undef, 0)
+                        out_txt = string(rstrip(out_txt))
                         out_txt *= "<tmpcode$block_count>"
                         block_count += 1
                     end
@@ -534,7 +538,6 @@ function parse_template(txt::String, config::ParserConfig)
                     depth += 1
                     push!(code_block, TmpStatement(code))
                 end
-                idx = m.offset + length(m.match)
             end
         
         # expression block
