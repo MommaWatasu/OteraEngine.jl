@@ -54,7 +54,7 @@ struct TmpBlock
     contents::Vector{Union{String, RawText, TmpStatement}}
 end
 
-function (TB::TmpBlock)()
+function (TB::TmpBlock)(expression_block::Tuple{String, String})
     code = ""
     for content in TB.contents
         if typeof(content) == TmpStatement
@@ -62,7 +62,7 @@ function (TB::TmpBlock)()
         elseif typeof(content) == RawText
             code *= ("txt *= \"$(replace(content.txt, "\""=>"\\\""))\"")
         else
-            code *= ("txt *= \"$(replace(apply_variables(content), "\""=>"\\\""))\";")
+            code *= ("txt *= \"$(replace(apply_variables(content, expression_block), "\""=>"\\\""))\";")
         end
     end
     return code
@@ -93,7 +93,7 @@ struct TmpCodeBlock
     contents::Vector{Union{String, RawText, TmpStatement, TmpBlock}}
 end
 
-function (TCB::TmpCodeBlock)(blocks::Vector{TmpBlock})
+function (TCB::TmpCodeBlock)(blocks::Vector{TmpBlock}, expression_block::Tuple{String, String})
     code = "txt=\"\";"
     for content in TCB.contents
         if typeof(content) == TmpStatement
@@ -101,21 +101,22 @@ function (TCB::TmpCodeBlock)(blocks::Vector{TmpBlock})
         elseif typeof(content) == TmpBlock
             idx = findfirst(x->x.name==content.name, blocks)
             idx === nothing && throw(TemplateError("invalid block: failed to appy block named `$(content.name)`"))
-            code *= blocks[idx]()
+            code *= blocks[idx](expression_block)
         elseif typeof(content) == RawText
-            code *= ("txt *= raw\"$(replace(content.txt, "\""=>"\\\""))\"")
+            code *= ("txt *= \"$(replace(content.txt, "\""=>"\\\""))\"")
         else
-            code *= ("txt *= raw\"$(replace(apply_variables(content), "\""=>"\\\""))\";")
+            code *= ("txt *= \"$(replace(apply_variables(content, expression_block), "\""=>"\\\""))\";")
         end
     end
-    if TCB != TmpCodeBlock([TmpStatement(code[4:end])])
+    if length(TCB.contents) != 1 || typeof(TCB.contents[1]) == TmpBlock
         code *= "push!(txts, txt);"
     end
     return code
 end
 
-function apply_variables(content)
-    for m in eachmatch(r"{{\s*(?<variable>[\s\S]*?)\s*?}}", content)
+function apply_variables(content, expression_block::Tuple{String, String})
+    re = Regex("$(expression_block[1])\s*(?<variable>[\s\S]*?)\s*?$(expression_block[2])")
+    for m in eachmatch(re, content)
         content = replace(content, m.match=>"\$"*m[:variable])
     end
     return content
@@ -352,8 +353,6 @@ function parse_template(txt::String, config::ParserConfig)
     in_block = false
     # variable to check whether inside of raw block or not
     raw = false
-    # variable to represent whether macro is valid or not
-    macro_def = true
     # code block depth
     depth = 0
     # the number of blocks
@@ -410,7 +409,7 @@ function parse_template(txt::String, config::ParserConfig)
                     # space control
                     new_txt = ""
                     if config.space_control
-                        new_txt = txt[idx:m.offset-1]
+                        new_txt = string(rstrip(txt[idx:m.offset-1]))
                         idx = m.offset + length(m.match) - length(m[:right_nl])
                     end
                     if lstrip_block == true
@@ -423,7 +422,6 @@ function parse_template(txt::String, config::ParserConfig)
                     elseif trim_block == false
                         idx = m.offset + length(m.match) - length(m[:right_nl])
                     end
-                    new_txt = string(rstrip(new_txt))
                     # check depth
                     if in_block
                         push!(code_block[end], RawText(new_txt))
@@ -443,7 +441,7 @@ function parse_template(txt::String, config::ParserConfig)
             # space control
             new_txt = ""
             if config.space_control
-                new_txt = txt[idx:m.offset-1]
+                new_txt = string(rstrip(txt[idx:m.offset-1]))
                 idx = m.offset + length(m.match) - length(m[:right_nl])
             end
             if lstrip_block == true
@@ -456,7 +454,6 @@ function parse_template(txt::String, config::ParserConfig)
             elseif trim_block == false
                 idx = m.offset + length(m.match) - length(m[:right_nl])
             end
-            new_txt = string(rstrip(new_txt))
             # check depth
             if in_block
                 push!(code_block[end], new_txt)
@@ -477,7 +474,9 @@ function parse_template(txt::String, config::ParserConfig)
                 if depth == 0
                     push!(tmp_codes, TmpCodeBlock(code_block))
                     code_block = Array{Union{String, RawText, TmpStatement}}(undef, 0)
-                    out_txt = string(rstrip(out_txt))
+                    if config.space_control
+                        out_txt = string(rstrip(out_txt))
+                    end
                     out_txt *= "<tmpcode$block_count>"
                     block_count += 1
                 end
@@ -521,7 +520,9 @@ function parse_template(txt::String, config::ParserConfig)
                     if depth == 0
                         push!(tmp_codes, TmpCodeBlock(code_block))
                         code_block = Array{Union{String, RawText, TmpStatement}}(undef, 0)
-                        out_txt = string(rstrip(out_txt))
+                        if config.space_control
+                            out_txt = string(rstrip(out_txt))
+                        end
                         out_txt *= "<tmpcode$block_count>"
                         block_count += 1
                     end
@@ -542,7 +543,6 @@ function parse_template(txt::String, config::ParserConfig)
         
         # expression block
         elseif m[:left_token] == config.expression_block[1]
-            macro_def = false
             if depth == 0
             else
             end

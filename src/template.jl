@@ -85,7 +85,7 @@ function (Tmp::Template)(; tmp_init::Dict{String, T}=Dict{String, Any}()) where 
     out_txt = Tmp.txt
     tmp_def = "function tmp_func("*tmp_args*");txts=Array{String}(undef, 0);"
     for tmp_code in Tmp.tmp_codes
-        tmp_def*=tmp_code(Tmp.blocks)
+        tmp_def*=tmp_code(Tmp.blocks, Tmp.config.expression_block)
     end
     tmp_def*="end"
     # escape sequence is processed here and they don't remain in function except `\n`.
@@ -120,7 +120,7 @@ function (Tmp::Template)(init::Dict{String, T}, blocks::Vector{TmpBlock}) where 
     out_txt = Tmp.txt
     tmp_def = "function tmp_func("*tmp_args*");txts=Array{String}(undef, 0);"
     for tmp_code in Tmp.tmp_codes
-        tmp_def*=tmp_code(blocks)
+        tmp_def*=tmp_code(blocks, Tmp.config.expression_block)
     end
     tmp_def*="end"
 
@@ -148,7 +148,8 @@ function inherite_blocks(src::Vector{TmpBlock}, dst::Vector{TmpBlock}, expressio
 end
 
 function assign_variables(txt::String, tmp_init::Dict{String, T}, expression_block::Tuple{String, String}) where T
-    for m in eachmatch(r"{{\s*(?<variable>[\s\S]*?)\s*?}}", txt)
+    re = Regex("$(config.expression_block[1])\s*(?<variable>[\s\S]*?)\s*?$(config.expression_block[2])")
+    for m in eachmatch(re, txt)
         if m[:variable] in keys(tmp_init)
             txt = replace(txt, m.match=>tmp_init[m[:variable]])
         end
