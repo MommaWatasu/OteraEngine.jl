@@ -1,6 +1,7 @@
 struct ParserConfig
     control_block::Tuple{String, String}
     expression_block::Tuple{String, String}
+    jl_block::Tuple{String, String}
     comment_block::Tuple{String, String}
     space_control::Bool
     lstrip_blocks::Bool
@@ -13,6 +14,7 @@ struct ParserConfig
         return new(
             (config["control_block_start"], config["control_block_end"]),
             (config["expression_block_start"], config["expression_block_end"]),
+            (config["jl_block_start"], config["jl_block_end"]),
             (config["comment_block_start"], config["comment_block_end"]),
             config["space_control"],
             config["lstrip_blocks"],
@@ -27,6 +29,8 @@ config2dict(config::ParserConfig) = Dict{String, Union{String, Bool}}(
     "control_block_end" => config.control_block[2],
     "expression_block_start" => config.expression_block[1],
     "expression_block_end" => config.expression_block[2],
+    "jl_block_start" => config.jl_block[1],
+    "jl_block_end" => config.jl_block[2],
     "comment_block_start" => config.comment_block[1],
     "comment_block_end" => config.comment_block[2],
     "space_control" => config.space_control,
@@ -54,7 +58,7 @@ struct TmpBlock
     contents::Vector{Union{String, RawText, TmpStatement}}
 end
 
-function (TB::TmpBlock)(expression_block::Tuple{String, String})
+function (TB::TmpBlock)(expression_block::Tuple{String, String}, filters::Dict{String, Function})
     code = ""
     for content in TB.contents
         if typeof(content) == TmpStatement
@@ -62,7 +66,7 @@ function (TB::TmpBlock)(expression_block::Tuple{String, String})
         elseif typeof(content) == RawText
             code *= ("txt *= \"$(replace(content.txt, "\""=>"\\\""))\"")
         else
-            code *= ("txt *= \"$(replace(apply_variables(content, expression_block), "\""=>"\\\""))\";")
+            code *= ("txt *= \"$(replace(apply_variables(content, expression_block, filters), "\""=>"\\\""))\";")
         end
     end
     return code
@@ -93,7 +97,7 @@ struct TmpCodeBlock
     contents::Vector{Union{String, RawText, TmpStatement, TmpBlock}}
 end
 
-function (TCB::TmpCodeBlock)(blocks::Vector{TmpBlock}, expression_block::Tuple{String, String})
+function (TCB::TmpCodeBlock)(blocks::Vector{TmpBlock}, expression_block::Tuple{String, String}, filters)
     code = "txt=\"\";"
     for content in TCB.contents
         if typeof(content) == TmpStatement
@@ -101,11 +105,11 @@ function (TCB::TmpCodeBlock)(blocks::Vector{TmpBlock}, expression_block::Tuple{S
         elseif typeof(content) == TmpBlock
             idx = findfirst(x->x.name==content.name, blocks)
             idx === nothing && throw(TemplateError("invalid block: failed to appy block named `$(content.name)`"))
-            code *= blocks[idx](expression_block)
+            code *= blocks[idx](expression_block, filters)
         elseif typeof(content) == RawText
             code *= ("txt *= \"$(replace(content.txt, "\""=>"\\\""))\"")
         else
-            code *= ("txt *= \"$(replace(apply_variables(content, expression_block), "\""=>"\\\""))\";")
+            code *= ("txt *= \"$(replace(apply_variables(content, expression_block, filters), "\""=>"\\\""))\";")
         end
     end
     if length(TCB.contents) != 1 || typeof(TCB.contents[1]) == TmpBlock
@@ -114,10 +118,15 @@ function (TCB::TmpCodeBlock)(blocks::Vector{TmpBlock}, expression_block::Tuple{S
     return code
 end
 
-function apply_variables(content, expression_block::Tuple{String, String})
-    re = Regex("$(expression_block[1])\s*(?<variable>[\s\S]*?)\s*?$(expression_block[2])")
+function apply_variables(content, expression_block::Tuple{String, String}, filters::Dict{String, Function})
+    re = Regex("$(expression_block[1])\\s*(?<variable>[\\s\\S]*?)\\s*?$(expression_block[2])")
     for m in eachmatch(re, content)
-        content = replace(content, m.match=>"\$"*m[:variable])
+        if occursin("|>", m.match)
+            exp = split(m.match, "|>")
+            f = filters[exp[2]]
+        else
+            content = content[1:m.offset-1] * "\$" * m[:variable] *  content[m.offset+length(m.match):end]
+        end
     end
     return content
 end
@@ -338,8 +347,7 @@ function parse_template(txt::String, config::ParserConfig)
     # dict to check tokens
     block_tokens = Dict(
         config.control_block[1] => config.control_block[2],
-        config.expression_block[1] => config.expression_block[2],
-        config.comment_block[1] => config.comment_block[2]
+        config.jl_block[1] => config.jl_block[2],
     )
     # length of the code blocks start/end token
     control_block_len = length(config.control_block)
@@ -357,6 +365,7 @@ function parse_template(txt::String, config::ParserConfig)
     depth = 0
     # the number of blocks
     block_count = 1
+    jl_block_count = 1
     # index of the template
     idx = 1
 
@@ -366,39 +375,39 @@ function parse_template(txt::String, config::ParserConfig)
     tmp_codes = Array{TmpCodeBlock}(undef, 0)
     code_block = Array{Union{String, RawText, TmpStatement, TmpBlock}}(undef, 0)
     out_txt = ""
-    
-    re = Regex("(?<left_nl>\\n*)\\s*?(?<left_token>($(regex_escape(config.control_block[1]))|$(regex_escape(config.expression_block[1]))|$(regex_escape(config.comment_block[1]))))(?<code>.*?)(?<right_token>($(regex_escape(config.control_block[2]))|$(regex_escape(config.expression_block[2]))|$(regex_escape(config.comment_block[2]))))(?<right_nl>\\n?)")
+
+    re = Regex("(?<left_nl>\\n*)(?<left_space>\\s*?)(?<left_token>($(regex_escape(config.control_block[1]))|$(regex_escape(config.jl_block[1]))))(?<code>[\\s\\S]*?)(?<right_token>($(regex_escape(config.control_block[2]))|$(regex_escape(config.jl_block[2]))))(?<right_nl>\\n?)")
     for m in eachmatch(re, txt)
         if block_tokens[m[:left_token]] != m[:right_token]
             throw(ParserError("token mismatch: beginning and end of the block doesn't match"))
         end
 
+        code = m[:code]
+        # check space control configuration
+        if !config.space_control
+            if code[1] == "-"
+                lstrip_block = true
+                code = code[2:end]
+            elseif code[1] == "+"
+                lstrip_block = false
+                code = code[2:end]
+            else
+                lstrip_block = config.lstrip_blocks
+            end
+            if code[end] == "-"
+                trim_block = true
+                code = code[1:end-1]
+            elseif code[end] == "+"
+                trim_block = false
+                code = code[1:end-1]
+            else
+                trim_block = config.trim_blocks
+            end
+        end
+        code = strip(code)
+
         # control block
         if m[:left_token] == config.control_block[1]
-            code = m[:code]
-            # check space control configuration
-            if !config.space_control
-                if code[1] == "-"
-                    lstrip_block = true
-                    code = code[2:end]
-                elseif code[1] == "+"
-                    lstrip_block = false
-                    code = code[2:end]
-                else
-                    lstrip_block = config.lstrip_blocks
-                end
-                if code[end] == "-"
-                    trim_block = true
-                    code = code[1:end-1]
-                elseif code[end] == "+"
-                    trim_block = false
-                    code = code[1:end-1]
-                else
-                    trim_block = config.trim_blocks
-                end
-            end
-
-            code = strip(code)
             tokens = split(code)
             operator = tokens[1]
 
@@ -540,18 +549,53 @@ function parse_template(txt::String, config::ParserConfig)
                     push!(code_block, TmpStatement(code))
                 end
             end
-        
-        # expression block
-        elseif m[:left_token] == config.expression_block[1]
-            if depth == 0
-            else
+
+        # jl block
+        elseif m[:left_token] == config.jl_block[1]
+            # space control
+            new_txt = ""
+            if config.space_control
+                new_txt = txt[idx:m.offset-1]*m[:left_nl]*m[:left_space]
+                idx = m.offset + length(m.match) - length(m[:right_nl])
             end
+            if lstrip_block == true
+                new_txt = txt[idx:m.offset-1]*m[:left_nl]
+            elseif lstrip_block == false
+                new_txt = txt[idx:m.offset-1]*m[:left_nl]*m[:left_space]
+            end
+            if trim_block == true
+                idx = m.offset + length(m.match)
+            elseif trim_block == false
+                idx = m.offset + length(m.match) - length(m[:right_nl])
+            end
+            # check depth
+            if in_block
+                push!(code_block[end], new_txt)
+            else
+                if depth == 0
+                    out_txt *= new_txt
+                else
+                    push!(code_block, new_txt)
+                end
+            end
+
+            re = r"(using|import)\s.*[\n, ;]"
+            tops = ""
+            for t in eachmatch(re, code)
+                tops *= t.match
+                code = replace(code, t.match=>"")
+            end
+            push!(top_codes, tops)
+            push!(jl_codes, code)
+            out_txt*="<jlcode$(jl_block_count)>"
+            jl_block_count += 1
+        
         else
-            throw(ParserError("This block is invalid: {$(m[:left_token]*" "*m[:code]*" "*m[right_token])}"))
+            throw(ParserError("This block is invalid: {$(m[:left_token]*" "*m[:code]*" "*m[:right_token])}"))
         end
     end
     out_txt *= txt[idx:end]
-    return super, out_txt, tmp_codes, blocks
+    return super, out_txt, tmp_codes, top_codes, jl_codes, blocks
 end
 
 # configuration(TOML format) parser
