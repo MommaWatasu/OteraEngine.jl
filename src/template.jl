@@ -38,6 +38,7 @@ function Template(
         config_path::String="",
         config::Dict{String, Union{String, Bool}} = Dict{String, Union{String, Bool}}()
     )
+    # set default working directory
     dir = pwd()
     if path
         if dirname(txt) == ""
@@ -46,13 +47,17 @@ function Template(
             dir = dirname(txt)
         end
     end
+
+    # load text
     if path
         open(txt, "r") do f
             txt = read(f, String)
         end
     end
+
+    # build config
     filters = build_filters(filters)
-    config = build_config(config_path, config)
+    config = build_config(dir, config_path, config)
     return Template(parse_template(txt, config)..., filters, config)
 end
 
@@ -69,7 +74,7 @@ function build_filters(filters::Dict{String, Function})
     return filters_dict
 end
 
-function build_config(config_path, config)
+function build_config(dir::String, config_path::String, config::Dict{String, Union{String, Bool}})
     if config_path!=""
         conf_file = parse_config(config_path)
         for v in keys(conf_file)
@@ -88,6 +93,7 @@ function build_config(config_path, config)
         "space_control" => true,
         "lstrip_blocks" => false,
         "trim_blocks" => false,
+        "autoescape" => true,
         "dir" => dir
     )
     for key in keys(config)
@@ -117,7 +123,7 @@ function (Tmp::Template)(; tmp_init::Dict{String, T}=Dict{String, Any}(), jl_ini
     out_txt = Tmp.txt
     tmp_def = "function tmp_func("*tmp_args*");txts=Array{String}(undef, 0);"
     for tmp_code in Tmp.tmp_codes
-        tmp_def*=tmp_code(Tmp.blocks, Tmp.config.expression_block, Tmp.filters)
+        tmp_def*=tmp_code(Tmp.blocks, Tmp.filters, Tmp.config)
     end
     tmp_def*="end"
     # escape sequence is processed here and they don't remain in function except `\n`.
@@ -158,7 +164,7 @@ function (Tmp::Template)(; tmp_init::Dict{String, T}=Dict{String, Any}(), jl_ini
         end
     end
     
-    return assign_variables(out_txt, tmp_init, Tmp.config.expression_block)
+    return assign_variables(out_txt, tmp_init, Tmp.filters, Tmp.config)
 end
 
 function (Tmp::Template)(tmp_init::Dict{String, T}, jl_init::Dict{String, N}, blocks::Vector{TmpBlock}) where {T, N}
@@ -177,7 +183,7 @@ function (Tmp::Template)(tmp_init::Dict{String, T}, jl_init::Dict{String, N}, bl
     out_txt = Tmp.txt
     tmp_def = "function tmp_func("*tmp_args*");txts=Array{String}(undef, 0);"
     for tmp_code in Tmp.tmp_codes
-        tmp_def*=tmp_code(blocks, Tmp.config.expression_block, Tmp.filters)
+        tmp_def*=tmp_code(blocks, Tmp.filters, Tmp.config)
     end
     tmp_def*="end"
 
@@ -215,7 +221,7 @@ function (Tmp::Template)(tmp_init::Dict{String, T}, jl_init::Dict{String, N}, bl
         end
     end
 
-    return assign_variables(out_txt, tmp_init, Tmp.config.expression_block)
+    return assign_variables(out_txt, tmp_init, Tmp.filters, Tmp.config)
 end
 
 function inherite_blocks(src::Vector{TmpBlock}, dst::Vector{TmpBlock}, expression_block::Tuple{String, String})
@@ -227,11 +233,27 @@ function inherite_blocks(src::Vector{TmpBlock}, dst::Vector{TmpBlock}, expressio
     return dst
 end
 
-function assign_variables(txt::String, tmp_init::Dict{String, T}, expression_block::Tuple{String, String}) where T
+function assign_variables(txt::String, tmp_init::Dict{String, T}, filters::Dict{String, Function}, config::ParserConfig) where T
     re = Regex("$(config.expression_block[1])\\s*(?<variable>[\\s\\S]*?)\\s*?$(config.expression_block[2])")
     for m in eachmatch(re, txt)
-        if m[:variable] in keys(tmp_init)
-            txt = replace(txt, m.match=>tmp_init[m[:variable]])
+        if occursin("|>", m[:variable])
+            exp = map(strip, split(m[:variable], "|>"))
+            if exp[1] in keys(tmp_init)
+                f = filters[exp[2]]
+                if config.autoescape && f != htmlesc
+                    txt = replace(txt, m.match=>htmlesc(f(tmp_init[exp[1]])))
+                else
+                    txt = replace(txt, m.match=>f(tmp_init[exp[1]]))
+                end
+            end
+        else
+            if m[:variable] in keys(tmp_init)
+                if config.autoescape
+                    txt = replace(txt, m.match=>htmlesc(tmp_init[m[:variable]]))
+                else
+                    txt = replace(txt, m.match=>tmp_init[m[:variable]])
+                end
+            end
         end
     end
     return txt

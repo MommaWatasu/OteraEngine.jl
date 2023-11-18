@@ -6,6 +6,7 @@ struct ParserConfig
     space_control::Bool
     lstrip_blocks::Bool
     trim_blocks::Bool
+    autoescape::Bool
     dir::String
     function ParserConfig(config::Dict{String, Union{String, Bool}})
         if config["space_control"] && (config["lstrip_blocks"] || config["trim_blocks"])
@@ -19,6 +20,7 @@ struct ParserConfig
             config["space_control"],
             config["lstrip_blocks"],
             config["trim_blocks"],
+            config["autoescape"],
             config["dir"]
         )
     end
@@ -36,6 +38,7 @@ config2dict(config::ParserConfig) = Dict{String, Union{String, Bool}}(
     "space_control" => config.space_control,
     "lstrip_blocks" => config.lstrip_blocks,
     "trim_blocks" => config.trim_blocks,
+    "autoescape" => config.autoescape,
     "dir" => config.dir
 )
 
@@ -58,7 +61,7 @@ struct TmpBlock
     contents::Vector{Union{String, RawText, TmpStatement}}
 end
 
-function (TB::TmpBlock)(expression_block::Tuple{String, String}, filters::Dict{String, Function})
+function (TB::TmpBlock)(filters::Dict{String, Function}, config::ParserConfig)
     code = ""
     for content in TB.contents
         if typeof(content) == TmpStatement
@@ -66,7 +69,7 @@ function (TB::TmpBlock)(expression_block::Tuple{String, String}, filters::Dict{S
         elseif typeof(content) == RawText
             code *= ("txt *= \"$(replace(content.txt, "\""=>"\\\""))\"")
         else
-            code *= ("txt *= \"$(replace(apply_variables(content, expression_block, filters), "\""=>"\\\""))\";")
+            code *= ("txt *= \"$(replace(apply_variables(content, filters, config), "\""=>"\\\""))\";")
         end
     end
     return code
@@ -97,7 +100,7 @@ struct TmpCodeBlock
     contents::Vector{Union{String, RawText, TmpStatement, TmpBlock}}
 end
 
-function (TCB::TmpCodeBlock)(blocks::Vector{TmpBlock}, expression_block::Tuple{String, String}, filters)
+function (TCB::TmpCodeBlock)(blocks::Vector{TmpBlock}, filters::Dict{String, Function}, config::ParserConfig)
     code = "txt=\"\";"
     for content in TCB.contents
         if typeof(content) == TmpStatement
@@ -105,11 +108,11 @@ function (TCB::TmpCodeBlock)(blocks::Vector{TmpBlock}, expression_block::Tuple{S
         elseif typeof(content) == TmpBlock
             idx = findfirst(x->x.name==content.name, blocks)
             idx === nothing && throw(TemplateError("invalid block: failed to appy block named `$(content.name)`"))
-            code *= blocks[idx](expression_block, filters)
+            code *= blocks[idx](config.expression_block, filters)
         elseif typeof(content) == RawText
             code *= ("txt *= \"$(replace(content.txt, "\""=>"\\\""))\"")
         else
-            code *= ("txt *= \"$(replace(apply_variables(content, expression_block, filters), "\""=>"\\\""))\";")
+            code *= ("txt *= \"$(replace(apply_variables(content, filters, config), "\""=>"\\\""))\";")
         end
     end
     if length(TCB.contents) != 1 || typeof(TCB.contents[1]) == TmpBlock
@@ -118,14 +121,25 @@ function (TCB::TmpCodeBlock)(blocks::Vector{TmpBlock}, expression_block::Tuple{S
     return code
 end
 
-function apply_variables(content, expression_block::Tuple{String, String}, filters::Dict{String, Function})
-    re = Regex("$(expression_block[1])\\s*(?<variable>[\\s\\S]*?)\\s*?$(expression_block[2])")
+is_escaped(s::String) = s == htmlesc(s)
+
+function apply_variables(content, filters::Dict{String, Function}, config::ParserConfig)
+    re = Regex("$(config.expression_block[1])\\s*(?<variable>[\\s\\S]*?)\\s*?$(config.expression_block[2])")
     for m in eachmatch(re, content)
-        if occursin("|>", m.match)
-            exp = split(m.match, "|>")
+        if occursin("|>", m[:variable])
+            exp = split(m[:variable], "|>")
             f = filters[exp[2]]
+            if config.autoescape && f != htmlesc
+                content = content[1:m.offset-1] * "\$(htmlesc($f($(exp[1]))))" *  content[m.offset+length(m.match):end]
+            else
+                content = content[1:m.offset-1] * "\$($f($(exp[1])))" *  content[m.offset+length(m.match):end]
+            end
         else
-            content = content[1:m.offset-1] * "\$" * m[:variable] *  content[m.offset+length(m.match):end]
+            if config.autoescape
+                content = content[1:m.offset-1] * "\$(htmlesc($(m[:variable])))" *  content[m.offset+length(m.match):end]
+            else
+                content = content[1:m.offset-1] * "\$" * m[:variable] *  content[m.offset+length(m.match):end]
+            end
         end
     end
     return content
@@ -141,8 +155,6 @@ function parse_meta(txt::String, config::ParserConfig)
         config.control_block[1] => config.control_block[2],
         config.comment_block[1] => config.comment_block[2]
     )
-    # length of the code blocks start/end token
-    control_block_len = length(config.control_block)
     # variables for lstrip and trim
     lstrip_block = nothing
     trim_block = nothing
@@ -349,10 +361,6 @@ function parse_template(txt::String, config::ParserConfig)
         config.control_block[1] => config.control_block[2],
         config.jl_block[1] => config.jl_block[2],
     )
-    # length of the code blocks start/end token
-    control_block_len = length(config.control_block)
-    expression_block_len = length.(config.expression_block)
-    comment_block_len = length.(config.comment_block)
     # variables for lstrip and trim
     lstrip_block = nothing
     trim_block = nothing
