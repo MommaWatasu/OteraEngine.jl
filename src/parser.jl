@@ -108,7 +108,7 @@ function (TCB::TmpCodeBlock)(blocks::Vector{TmpBlock}, filters::Dict{String, Fun
         elseif typeof(content) == TmpBlock
             idx = findfirst(x->x.name==content.name, blocks)
             idx === nothing && throw(TemplateError("invalid block: failed to appy block named `$(content.name)`"))
-            code *= blocks[idx](config.expression_block, filters)
+            code *= blocks[idx](filters, config)
         elseif typeof(content) == RawText
             code *= ("txt *= \"$(replace(content.txt, "\""=>"\\\""))\"")
         else
@@ -130,13 +130,13 @@ function apply_variables(content, filters::Dict{String, Function}, config::Parse
             exp = split(m[:variable], "|>")
             f = filters[exp[2]]
             if config.autoescape && f != htmlesc
-                content = content[1:m.offset-1] * "\$(htmlesc($f($(exp[1]))))" *  content[m.offset+length(m.match):end]
+                content = content[1:m.offset-1] * "\$(htmlesc($f(string($(exp[1])))))" *  content[m.offset+length(m.match):end]
             else
-                content = content[1:m.offset-1] * "\$($f($(exp[1])))" *  content[m.offset+length(m.match):end]
+                content = content[1:m.offset-1] * "\$($f(string($(exp[1]))))" *  content[m.offset+length(m.match):end]
             end
         else
             if config.autoescape
-                content = content[1:m.offset-1] * "\$(htmlesc($(m[:variable])))" *  content[m.offset+length(m.match):end]
+                content = content[1:m.offset-1] * "\$(htmlesc(string($(m[:variable]))))" *  content[m.offset+length(m.match):end]
             else
                 content = content[1:m.offset-1] * "\$" * m[:variable] *  content[m.offset+length(m.match):end]
             end

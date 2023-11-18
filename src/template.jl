@@ -36,7 +36,7 @@ function Template(
         path::Bool=true,
         filters::Dict{String, Function} = Dict{String, Function}(),
         config_path::String="",
-        config::Dict{String, Union{String, Bool}} = Dict{String, Union{String, Bool}}()
+        config::Dict{String, <:Union{String, Bool}} = Dict{String, Union{String, Bool}}()
     )
     # set default working directory
     dir = pwd()
@@ -74,7 +74,7 @@ function build_filters(filters::Dict{String, Function})
     return filters_dict
 end
 
-function build_config(dir::String, config_path::String, config::Dict{String, Union{String, Bool}})
+function build_config(dir::String, config_path::String, config::Dict{String, <:Union{String, Bool}})
     if config_path!=""
         conf_file = parse_config(config_path)
         for v in keys(conf_file)
@@ -241,15 +241,15 @@ function assign_variables(txt::String, tmp_init::Dict{String, T}, filters::Dict{
             if exp[1] in keys(tmp_init)
                 f = filters[exp[2]]
                 if config.autoescape && f != htmlesc
-                    txt = replace(txt, m.match=>htmlesc(f(tmp_init[exp[1]])))
+                    txt = replace(txt, m.match=>htmlesc(f(string(tmp_init[exp[1]]))))
                 else
-                    txt = replace(txt, m.match=>f(tmp_init[exp[1]]))
+                    txt = replace(txt, m.match=>f(string(tmp_init[exp[1]])))
                 end
             end
         else
             if m[:variable] in keys(tmp_init)
                 if config.autoescape
-                    txt = replace(txt, m.match=>htmlesc(tmp_init[m[:variable]]))
+                    txt = replace(txt, m.match=>htmlesc(string(tmp_init[m[:variable]])))
                 else
                     txt = replace(txt, m.match=>tmp_init[m[:variable]])
                 end
