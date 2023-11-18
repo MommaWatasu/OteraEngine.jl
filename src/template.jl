@@ -34,7 +34,7 @@ end
 function Template(
         txt::String;
         path::Bool=true,
-        filters::Dict{String, Function} = Dict{String, Function}(),
+        filters::Dict{String, <:Function} = Dict{String, Function}(),
         config_path::String="",
         config::Dict{String, <:Union{String, Bool}} = Dict{String, Union{String, Bool}}()
     )
@@ -58,10 +58,10 @@ function Template(
     # build config
     filters = build_filters(filters)
     config = build_config(dir, config_path, config)
-    return Template(parse_template(txt, config)..., filters, config)
+    return Template(parse_template(txt, filters, config)..., filters, config)
 end
 
-function build_filters(filters::Dict{String, Function})
+function build_filters(filters::Dict{String, <:Function})
     filters_dict = Dict{String, Function}(
         "e" => htmlesc,
         "escape" => htmlesc,

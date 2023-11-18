@@ -67,7 +67,7 @@ function (TB::TmpBlock)(filters::Dict{String, Function}, config::ParserConfig)
         if typeof(content) == TmpStatement
             code *= "$(content.st);"
         elseif typeof(content) == RawText
-            code *= ("txt *= \"$(replace(content.txt, "\""=>"\\\""))\"")
+            code *= ("txt *= \"$(replace(content.txt, "\""=>"\\\""))\";")
         else
             code *= ("txt *= \"$(replace(apply_variables(content, filters, config), "\""=>"\\\""))\";")
         end
@@ -110,7 +110,7 @@ function (TCB::TmpCodeBlock)(blocks::Vector{TmpBlock}, filters::Dict{String, Fun
             idx === nothing && throw(TemplateError("invalid block: failed to appy block named `$(content.name)`"))
             code *= blocks[idx](filters, config)
         elseif typeof(content) == RawText
-            code *= ("txt *= \"$(replace(content.txt, "\""=>"\\\""))\"")
+            code *= ("txt *= \"$(replace(content.txt, "\""=>"\\\""))\";")
         else
             code *= ("txt *= \"$(replace(apply_variables(content, filters, config), "\""=>"\\\""))\";")
         end
@@ -149,7 +149,7 @@ function regex_escape(txt)
     replace(txt, r"(?<escape>\(|\)|\[|\]|\{|\}|\.|\?|\+|\*|\||\\)" => s"\\\g<escape>")
 end
 
-function parse_meta(txt::String, config::ParserConfig)
+function parse_meta(txt::String, filters::Dict{String, Function}, config::ParserConfig)
     # dict to check tokens
     block_tokens = Dict(
         config.control_block[1] => config.control_block[2],
@@ -256,7 +256,7 @@ function parse_meta(txt::String, config::ParserConfig)
                 file_name = import_st[:file_name]
                 external_macros = Dict()
                 open(config.dir*"/"*file_name[2:end-1], "r") do f
-                    external_macros = parse_meta(read(f, String), config)[3]
+                    external_macros = parse_meta(read(f, String), filters, config)[3]
                     for em in external_macros
                         macros[alias*"."*p[1]] = em[2]
                     end
@@ -288,7 +288,7 @@ function parse_meta(txt::String, config::ParserConfig)
                 alias = tokens[4]
                 if file_name[1] == file_name[end] == '\"'
                     open(config.dir*"/"*file_name[2:end-1], "r") do f
-                        external_macros = parse_meta(read(f, String), config)[3]
+                        external_macros = parse_meta(read(f, String), filters, config)[3]
                         for em in external_macros
                             macros[alias*"."*p[1]] = em[2]
                         end
@@ -301,7 +301,7 @@ function parse_meta(txt::String, config::ParserConfig)
                 out_txt *= new_txt
                 macro_def = string(lstrip(code[6:end]))
             elseif operator == "endmacro"
-                macros[get_macro_name(macro_def)] = build_macro(macro_def, new_txt)
+                macros[get_macro_name(macro_def)] = build_macro(macro_def, new_txt, filters, config)
             end
 
         # remove comment block
@@ -311,21 +311,33 @@ function parse_meta(txt::String, config::ParserConfig)
         end
     end
     out_txt *= txt[idx:end]
-    out_txt = apply_macros(out_txt, macros, config)
+    out_txt = strip(apply_macros(out_txt, macros, config))
     return super, out_txt, macros
 end
 
 get_macro_name(macro_def) = match(r"(?<name>.*?)\(.*?\)", macro_def)[:name]
 
-function build_macro(macro_def::String, txt::String)
+function build_macro(macro_def::String, txt::String, filters::Dict{String, Function}, config::ParserConfig)
     arg_names = [match(r"\S[^=]*", arg).match for arg in split(match(r"\((?<args>.*?)\)", macro_def)[:args], ",")]
     out_txt = ""
     idx = 1
     for m in eachmatch(r"\{\{\s*(?<variable>.*?)\s*\}\}", txt)
-        if m[:variable] in arg_names
-            out_txt *= (txt[idx:m.offset-1] * "\$" * m[:variable])
-            idx = m.offset + length(m.match)
+        if occursin("|>", m[:variable])
+            exp = split(m[:variable], "|>")
+            f = filters[exp[2]]
+            if config.autoescape && f != htmlesc
+                out_txt *= txt[idx:m.offset-1] * "\$(htmlesc($f(string($(exp[1])))))"
+            else
+                out_txt *= txt[idx:m.offset-1] * "\$($f(string($(exp[1]))))"
+            end
+        else
+            if config.autoescape
+                out_txt *= txt[idx:m.offset-1] * "\$(htmlesc(string($(m[:variable]))))"
+            else
+                out_txt *= txt[idx:m.offset-1] * "\$" * m[:variable]
+            end
         end
+        idx = m.offset + length(m.match)
     end
     out_txt *= txt[idx:end]
     return "_" * get_macro_name(macro_def) * "_" * match(r"\(.*\)", macro_def).match * "=\"\"\"" * out_txt * "\"\"\""
@@ -339,11 +351,10 @@ function apply_macros(txt::String, macros::Dict{String, String}, config::ParserC
     m = match(re, txt)
     while !isnothing(m)
         if haskey(macros, m[:name])
-            println("@invokelatest _"*split(m[:name], ".")[end]*"_"*m[:body])
             try
                 txt = txt[1:m.offset-1]*eval(Meta.parse("@invokelatest _"*split(m[:name], ".")[end]*"_"*m[:body]))*txt[m.offset+length(m.match):end]
-            catch
-                throw(ParserError("invalid macro: failed to call macro in $(m.match)"))
+            catch e
+                throw(ParserError("invalid macro: failed to call macro in $(m.match) because of the following error\n$e"))
             end
         end
         m = match(re, txt)
@@ -352,9 +363,9 @@ function apply_macros(txt::String, macros::Dict{String, String}, config::ParserC
 end
 
 ## template parser
-function parse_template(txt::String, config::ParserConfig)
+function parse_template(txt::String, filters::Dict{String, Function}, config::ParserConfig)
     # process meta information
-    super, txt, _ = parse_meta(txt, config)
+    super, txt, _ = parse_meta(txt, filters, config)
 
     # dict to check tokens
     block_tokens = Dict(
