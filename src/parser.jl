@@ -3,21 +3,28 @@ struct ParserConfig
     expression_block::Tuple{String, String}
     jl_block::Tuple{String, String}
     comment_block::Tuple{String, String}
-    space_control::Bool
+    autospace::Bool
     lstrip_blocks::Bool
     trim_blocks::Bool
     autoescape::Bool
     dir::String
     function ParserConfig(config::Dict{String, Union{String, Bool}})
-        if config["space_control"] && (config["lstrip_blocks"] || config["trim_blocks"])
-            throw(ParserError("ParserConfig is broken: lstrip_blocks and trim_blocks should be disabled when space_control"))
+        if config["autospace"] == true
+            if !config["lstrip_blocks"]
+                @warn "lstrip_blocks is ignored since autospace is enabled"
+                config["lstrip_blocks"] = true
+            end
+            if !config["trim_blocks"]
+                @warn "trim_blocks is ignored since autospace is enabled"
+                config["trim_blocks"] = true
+            end
         end
         return new(
             (config["control_block_start"], config["control_block_end"]),
             (config["expression_block_start"], config["expression_block_end"]),
             (config["jl_block_start"], config["jl_block_end"]),
             (config["comment_block_start"], config["comment_block_end"]),
-            config["space_control"],
+            config["autospace"],
             config["lstrip_blocks"],
             config["trim_blocks"],
             config["autoescape"],
@@ -35,7 +42,7 @@ config2dict(config::ParserConfig) = Dict{String, Union{String, Bool}}(
     "jl_block_end" => config.jl_block[2],
     "comment_block_start" => config.comment_block[1],
     "comment_block_end" => config.comment_block[2],
-    "space_control" => config.space_control,
+    "autospace" => config.autospace,
     "lstrip_blocks" => config.lstrip_blocks,
     "trim_blocks" => config.trim_blocks,
     "autoescape" => config.autoescape,
@@ -121,8 +128,6 @@ function (TCB::TmpCodeBlock)(blocks::Vector{TmpBlock}, filters::Dict{String, Fun
     return code
 end
 
-is_escaped(s::String) = s == htmlesc(s)
-
 function apply_variables(content, filters::Dict{String, Function}, config::ParserConfig)
     re = Regex("$(config.expression_block[1])\\s*(?<variable>[\\s\\S]*?)\\s*?$(config.expression_block[2])")
     for m in eachmatch(re, content)
@@ -156,8 +161,8 @@ function parse_meta(txt::String, filters::Dict{String, Function}, config::Parser
         config.comment_block[1] => config.comment_block[2]
     )
     # variables for lstrip and trim
-    lstrip_block = nothing
-    trim_block = nothing
+    lstrip_block = ' '
+    trim_block = ' '
     # processed text
     out_txt = ""
     # parent template
@@ -168,35 +173,14 @@ function parse_meta(txt::String, filters::Dict{String, Function}, config::Parser
     macros = Dict{String, String}()
     macro_def = ""
 
-    re = Regex("(?<left_nl>\\n*)(?<left_space>\\s*?)(?<left_token>($(regex_escape(config.control_block[1]))|$(regex_escape(config.comment_block[1]))))(?<code>.*?)(?<right_token>($(regex_escape(config.control_block[2]))|$(regex_escape(config.comment_block[2]))))(?<right_nl>\\n?)")
+    re = Regex("(?<left_space1>\\s*?)(?<left_nl>\n?)(?<left_space2>\\s*?)(?<left_token>($(regex_escape(config.control_block[1]))|$(regex_escape(config.comment_block[1]))))(?<code>.*?)(?<right_token>($(regex_escape(config.control_block[2]))|$(regex_escape(config.comment_block[2]))))(?<right_nl>\\n?)(?<right_space>\\s*?)")
     for m in eachmatch(re, txt)
         if block_tokens[m[:left_token]] != m[:right_token]
             throw(ParserError("token mismatch: beginning and end of the block doesn't match"))
         end
         if m[:left_token] == config.control_block[1]
-            code = m[:code]
-            # check space control configuration
-            if !config.space_control
-                if code[1] == "-"
-                    lstrip_block = true
-                    code = code[2:end]
-                elseif code[1] == "+"
-                    lstrip_block = false
-                    code = code[2:end]
-                else
-                    lstrip_block = config.lstrip_blocks
-                end
-                if code[end] == "-"
-                    trim_block = true
-                    code = code[1:end-1]
-                elseif code[end] == "+"
-                    trim_block = false
-                    code = code[1:end-1]
-                else
-                    trim_block = config.trim_blocks
-                end
-            end
-
+            # get space control config and process code
+            code, lstrip_block, trim_block = get_block_config(string(m[:code]))
             code = strip(code)
             tokens = split(code)
             operator = tokens[1]
@@ -205,22 +189,18 @@ function parse_meta(txt::String, filters::Dict{String, Function}, config::Parser
                 continue
             end
 
+            if config.autospace
+                if operator == "macro"
+                    lstrip_block = ' '
+                    trim_block = '-'
+                elseif operator == "endmacro"
+                    lstrip_block = '-'
+                    trim_block = ' '
+                end
+            end
+
             # space control
-            new_txt = ""
-            if config.space_control
-                new_txt = txt[idx:m.offset-1]
-                idx = m.offset + length(m.match) - length(m[:right_nl])
-            end
-            if lstrip_block == true
-                new_txt = txt[idx:m.offset-1]*m[:left_nl]
-            elseif lstrip_block == false
-                new_txt = txt[idx:m.offset-1]*m[:left_nl]*m[:left_space]
-            end
-            if trim_block == true
-                idx = m.offset + length(m.match)
-            elseif trim_block == false
-                idx = m.offset + length(m.match) - length(m[:right_nl])
-            end
+            new_txt, idx = process_space(txt, m, idx, lstrip_block, trim_block, config)
 
             # check if the template has a parent
             if operator == "extends"
@@ -311,14 +291,60 @@ function parse_meta(txt::String, filters::Dict{String, Function}, config::Parser
         end
     end
     out_txt *= txt[idx:end]
-    out_txt = strip(apply_macros(out_txt, macros, config))
+    out_txt = string(strip(apply_macros(out_txt, macros, config)))
     return super, out_txt, macros
+end
+
+function get_block_config(code::String)
+    lstrip_block = ' '
+    trim_block = ' '
+    if code[1] == '-'
+        lstrip_block = '-'
+        code = code[2:end]
+    elseif code[1] == '+'
+        lstrip_block = '+'
+        code = code[2:end]
+    else
+        lstrip_block = ' '
+    end
+    if code[end] == '-'
+        trim_block = '-'
+        code = code[1:end-1]
+    elseif code[end] == '+'
+        trim_block = '+'
+        code = code[1:end-1]
+    else
+        trim_block = ' '
+    end
+    return code, lstrip_block, trim_block
+end
+
+function process_space(txt::String, m::RegexMatch, idx::Int, lstrip_block::Char, trim_block::Char, config::ParserConfig)
+    new_txt = ""
+    if lstrip_block == '+'
+        new_txt = txt[idx:m.offset-1]*m[:left_space1]*m[:left_nl]*m[:left_space2]
+    elseif lstrip_block == '-'
+        new_txt = txt[idx:m.offset-1]
+    elseif config.lstrip_blocks
+        new_txt = txt[idx:m.offset-1]*m[:left_space1]*m[:left_nl]
+    else
+        new_txt = txt[idx:m.offset-1]*m[:left_space1]*m[:left_nl]*m[:left_space2]
+    end
+    if trim_block == '+'
+        idx = m.offset + length(m.match) - length(m[:right_space]) - length(m[:right_nl])
+    elseif trim_block == '-'
+        idx = m.offset + length(m.match)
+    elseif config.trim_blocks
+        idx = m.offset + length(m.match) - length(m[:right_space])
+    else
+        idx = m.offset + length(m.match) - length(m[:right_space]) - length(m[:right_nl])
+    end
+    return new_txt, idx
 end
 
 get_macro_name(macro_def) = match(r"(?<name>.*?)\(.*?\)", macro_def)[:name]
 
 function build_macro(macro_def::String, txt::String, filters::Dict{String, Function}, config::ParserConfig)
-    arg_names = [match(r"\S[^=]*", arg).match for arg in split(match(r"\((?<args>.*?)\)", macro_def)[:args], ",")]
     out_txt = ""
     idx = 1
     for m in eachmatch(r"\{\{\s*(?<variable>.*?)\s*\}\}", txt)
@@ -373,8 +399,8 @@ function parse_template(txt::String, filters::Dict{String, Function}, config::Pa
         config.jl_block[1] => config.jl_block[2],
     )
     # variables for lstrip and trim
-    lstrip_block = nothing
-    trim_block = nothing
+    lstrip_block = ' ' 
+    trim_block = ' '
     # variables for blocks
     blocks = Vector{TmpBlock}()
     in_block = false
@@ -395,34 +421,14 @@ function parse_template(txt::String, filters::Dict{String, Function}, config::Pa
     code_block = Array{Union{String, RawText, TmpStatement, TmpBlock}}(undef, 0)
     out_txt = ""
 
-    re = Regex("(?<left_nl>\\n*)(?<left_space>\\s*?)(?<left_token>($(regex_escape(config.control_block[1]))|$(regex_escape(config.jl_block[1]))))(?<code>[\\s\\S]*?)(?<right_token>($(regex_escape(config.control_block[2]))|$(regex_escape(config.jl_block[2]))))(?<right_nl>\\n?)")
+    re = Regex("(?<left_space1>\\s*?)(?<left_nl>\n?)(?<left_space2>\\s*?)(?<left_token>($(regex_escape(config.control_block[1]))|$(regex_escape(config.jl_block[1]))))(?<code>[\\s\\S]*?)(?<right_token>($(regex_escape(config.control_block[2]))|$(regex_escape(config.jl_block[2]))))(?<right_nl>\\n?)(?<right_space>\\s*?)")
     for m in eachmatch(re, txt)
         if block_tokens[m[:left_token]] != m[:right_token]
             throw(ParserError("token mismatch: beginning and end of the block doesn't match"))
         end
 
-        code = m[:code]
-        # check space control configuration
-        if !config.space_control
-            if code[1] == "-"
-                lstrip_block = true
-                code = code[2:end]
-            elseif code[1] == "+"
-                lstrip_block = false
-                code = code[2:end]
-            else
-                lstrip_block = config.lstrip_blocks
-            end
-            if code[end] == "-"
-                trim_block = true
-                code = code[1:end-1]
-            elseif code[end] == "+"
-                trim_block = false
-                code = code[1:end-1]
-            else
-                trim_block = config.trim_blocks
-            end
-        end
+        # get space control config and process code
+        code, lstrip_block, trim_block = get_block_config(string(m[:code]))
         code = strip(code)
 
         # control block
@@ -435,21 +441,7 @@ function parse_template(txt::String, filters::Dict{String, Function}, config::Pa
                 if operator == "endraw"
                     raw = false
                     # space control
-                    new_txt = ""
-                    if config.space_control
-                        new_txt = string(rstrip(txt[idx:m.offset-1]))
-                        idx = m.offset + length(m.match) - length(m[:right_nl])
-                    end
-                    if lstrip_block == true
-                        new_txt = txt[idx:m.offset-1]*m[:left_nl]
-                    elseif lstrip_block == false
-                        new_txt = txt[idx:m.offset-1]*m[:left_nl]*m[:left_space]
-                    end
-                    if trim_block == true
-                        idx = m.offset + length(m.match)
-                    elseif trim_block == false
-                        idx = m.offset + length(m.match) - length(m[:right_nl])
-                    end
+                    new_txt, idx = process_space(txt, m, idx, lstrip_block, trim_block, config)
                     # check depth
                     if in_block
                         push!(code_block[end], RawText(new_txt))
@@ -467,21 +459,7 @@ function parse_template(txt::String, filters::Dict{String, Function}, config::Pa
             end
 
             # space control
-            new_txt = ""
-            if config.space_control
-                new_txt = string(rstrip(txt[idx:m.offset-1]))
-                idx = m.offset + length(m.match) - length(m[:right_nl])
-            end
-            if lstrip_block == true
-                new_txt = txt[idx:m.offset-1]*m[:left_nl]
-            elseif lstrip_block == false
-                new_txt = txt[idx:m.offset-1]*m[:left_nl]*m[:left_space]
-            end
-            if trim_block == true
-                idx = m.offset + length(m.match)
-            elseif trim_block == false
-                idx = m.offset + length(m.match) - length(m[:right_nl])
-            end
+            new_txt, idx = process_space(txt, m, idx, lstrip_block, trim_block, config)
             # check depth
             if in_block
                 push!(code_block[end], new_txt)
@@ -502,9 +480,6 @@ function parse_template(txt::String, filters::Dict{String, Function}, config::Pa
                 if depth == 0
                     push!(tmp_codes, TmpCodeBlock(code_block))
                     code_block = Array{Union{String, RawText, TmpStatement}}(undef, 0)
-                    if config.space_control
-                        out_txt = string(rstrip(out_txt))
-                    end
                     out_txt *= "<tmpcode$block_count>"
                     block_count += 1
                 end
@@ -548,9 +523,6 @@ function parse_template(txt::String, filters::Dict{String, Function}, config::Pa
                     if depth == 0
                         push!(tmp_codes, TmpCodeBlock(code_block))
                         code_block = Array{Union{String, RawText, TmpStatement}}(undef, 0)
-                        if config.space_control
-                            out_txt = string(rstrip(out_txt))
-                        end
                         out_txt *= "<tmpcode$block_count>"
                         block_count += 1
                     end
@@ -559,7 +531,7 @@ function parse_template(txt::String, filters::Dict{String, Function}, config::Pa
             # julia statement
             else
                 if !(operator in ["for", "while", "if", "let"])
-                    throw(ParserError("This block is invalid: {$(m[:left_token])$(m[:code])$(m[:right_token])}"))
+                    throw(ParserError("This block is invalid: $(m[:left_token])$(m[:code])$(m[:right_token])"))
                 end
                 if in_block
                     push!(code_block[end], TmpStatement(code))
@@ -571,22 +543,8 @@ function parse_template(txt::String, filters::Dict{String, Function}, config::Pa
 
         # jl block
         elseif m[:left_token] == config.jl_block[1]
-            # space control
-            new_txt = ""
-            if config.space_control
-                new_txt = txt[idx:m.offset-1]*m[:left_nl]*m[:left_space]
-                idx = m.offset + length(m.match) - length(m[:right_nl])
-            end
-            if lstrip_block == true
-                new_txt = txt[idx:m.offset-1]*m[:left_nl]
-            elseif lstrip_block == false
-                new_txt = txt[idx:m.offset-1]*m[:left_nl]*m[:left_space]
-            end
-            if trim_block == true
-                idx = m.offset + length(m.match)
-            elseif trim_block == false
-                idx = m.offset + length(m.match) - length(m[:right_nl])
-            end
+            code, lstrip_block, trim_block = get_block_config(string(m[:code]))
+            new_txt, idx = process_space(txt, m, idx, lstrip_block, trim_block, config)
             # check depth
             if in_block
                 push!(code_block[end], new_txt)

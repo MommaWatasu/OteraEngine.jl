@@ -36,8 +36,8 @@ function Template(
         path::Bool=true,
         filters::Dict{String, <:Function} = Dict{String, Function}(),
         config_path::String="",
-        config::Dict{String, <:Union{String, Bool}} = Dict{String, Union{String, Bool}}()
-    )
+        config::Dict{String, K} = Dict{String, Union{String, Bool}}()
+    ) where {K}
     # set default working directory
     dir = pwd()
     if path
@@ -74,7 +74,7 @@ function build_filters(filters::Dict{String, <:Function})
     return filters_dict
 end
 
-function build_config(dir::String, config_path::String, config::Dict{String, <:Union{String, Bool}})
+function build_config(dir::String, config_path::String, config::Dict{String, K}) where {K}
     if config_path!=""
         conf_file = parse_config(config_path)
         for v in keys(conf_file)
@@ -90,7 +90,7 @@ function build_config(dir::String, config_path::String, config::Dict{String, <:U
         "jl_block_end" => ">}",
         "comment_block_start" => "{#",
         "comment_block_end" => "#}",
-        "space_control" => true,
+        "autospace" => false,
         "lstrip_blocks" => false,
         "trim_blocks" => false,
         "autoescape" => true,
