@@ -34,7 +34,7 @@ function apply_macros(txt::String, macros::Dict{String, String}, config::ParserC
     while !isnothing(m)
         if haskey(macros, m[:name])
             try
-                txt = txt[1:m.offset-1]*eval(Meta.parse("@invokelatest _"*split(m[:name], ".")[end]*"_"*m[:body]))*txt[m.offset+length(m.match):end]
+                txt = txt[1:m.offset-1]*eval(Meta.parse("Base.@invokelatest _"*split(m[:name], ".")[end]*"_"*m[:body]))*txt[m.offset+length(m.match):end]
             catch e
                 throw(ParserError("invalid macro: failed to call macro in $(m.match) because of the following error\n$e"))
             end
