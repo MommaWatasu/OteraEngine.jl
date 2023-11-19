@@ -155,7 +155,7 @@ This is test for raw block
     Julia block doesn't preserve inner text. Don't use it for raw text.
 
 ## Template Inheritance
-### Include Template
+### Include
 You can include template with `{% include "(template filename)" %}` code block. This is the tiny example:
 ```
 #=This is the included template(test2.html)=#
@@ -172,7 +172,7 @@ Today, I'd like to introduce OteraEngine.jl
 
 This code block is also available inside the `{% block %}` explained in next section.
 
-### Extend Template
+### Extends
 When you build large web app with OteraEngine, you may want to use "template of template". This is possible with `{% extends %}` code block.
 This code block have to be located at the top of the document, otherwise ignored. This is the example:
 ```
@@ -224,7 +224,7 @@ This code block have to be located at the top of the document, otherwise ignored
 If you write `{% extends (template filename) %}` in main template, parser will use `(template filename)` as the base template.
 And, you can write blocks in the main template with `{% block (block name) %}` and `{% endblock %}`.
 
-### Inherite block
+### Block Inheritance
 Blocks defined in parent(even in ancestors) is inherited with `super()`:
 ```
 # Grand Parent Template("grand.html")
