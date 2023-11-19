@@ -7,97 +7,154 @@ OteraEngine can be installed using the Julia package manager. From the Julia REP
 pkg > add OteraEngine
 ```
 
-## Usage
+## API
 
 Acutually, this package has only one structure, but these are very powerful because of Metaprogramming function of Julia.
 
 ```@docs
 Template
 ```
-Learn about grammer and configuration in the sections below.
+Learn about syntax and configuration in the sections below.
 
-### Base Syntax
-Actually, you have two way to write template. The first way is to write the code in julia. This is example:
-```
-<html>
-    <head><title>MyPage</title></head>
-    <body>
-        The current time is <strong>
-        ```
-        using Dates
-        now()
-        ```
-        </strong>
-    </body>
-</html>
-```
-the code inside
-```
-    ```...```
-```
-is executed as julia code(with the default configuration). In this case, OteraEngine insert the output of `now()`.
+## Abstract for Usage
+Basic syntax of OteraEngine is very similar to one of Jinja2 of Python. You can use OteraEngine for any extension format which has text.
+There are 4 types of blocks:
+- `{% ... %}`: Control block
+- `{{ ... }}`: Expression block
+- `{< ... >}`: Julia block
+- `{# ... #}`: Comment block
+Control block is used for control flow like `if` or `for`, and Expression block is used for embedding variables. Commend block is just ignored and remove from template.
+These block must be familiar with those who have ever used jinja2, but OteraEngine has one more block.
+Julia block makes you possible to write Julia code directly into templates. `using` and `import` statement are also available in it.
 
-The second way is to use Jinja like syntax. Have you ever seen template like this?:
+## Variables
+As mentioned in previous section, you can embed variables with Expression block. And you can define variables in both templates and julia. Here is an example:
 ```
-#input
-<html>
-    <head><title>MyPage</title></head>
-    <body>
-        {% set name = "watasu" %}
-        {% if name=="watasu" %}
-        your name is {{ name }}, right?
-        {% end %}
-        {% for i in 1 : 10 %}
-        Hello {{i}}
-        {% end %}
-        {% with age = 15 %}
-        and your age is {{ age }}.
-        {% end %}
-    </body>
-</html>
-#output
-<html>
-    <head><title>MyPage</title></head>
-    <body>
-        your name is watasu, right?
+<div>
+    {% let name = "Julia" %}
+        Hello {{name}}
+    {% end %}
+</div>
+```
+!!! danger "known issue about `set`"
+    Now, you can define variables with control blocks except `set` statement. Maybe it will be fixed in future release.
+
+You can define variables from julia code like this:
+```julia
+tmp = Template(...)
+tmp(tmp_init=Dict("name"=>"Julia"))
+```
+tmp_init is also used for control blocks, and its type is `Dict`. The format is `(variable name)=>(value)`.
+!!! warning "variables for tmp block is different from variables in julia block"
+    you can't use variables defined for expression block in julia block. Please see [Julia block](#Julia block) for more detail.
+
+## Filters
+This is very useful function for expression block. You can apply filters for variables like this:
+```
+{{ value |> escape }}
+```
+variable name and filter name are separeted by `|>`. Built-in filters are followings:
+- `escape` or `e`: escape variables with `Markdown.htmlesc`
+- `upper`: convert variables into uppercase
+- `lower`: convert variables into lowercase
+You can define filters by yourself:
+```julia
+say_twice(txt) = txt*txt
+filters = Dict(
+    "repeat" => say_twice
+)
+tmp = Template(..., filters=filters)
+```
+Then you can use `repeat` in you template.
+
+## Comment
+To comment out part of template, use comment block which set to `{# #}` by default:
+```
+{#
+    This is comment.
+    These lines are just ignored and removed
+#}
+```
+
+## White Space Control
+OteraEngine has option to control spaces which is named `lstrip_blocks` and `trim_blocks`.
+If `lstrip_blocks` is enabled, spaces from start of line behind the block is removed.
+Template:
+```
+{% for i in 1:3 %}
+    Hello {{ i }}
+{% end %}
+```
+Without `lstrip blocks`:
+```
+<div>
+    
+        Hello 1
+    
+        Hello 2
+    
+        Hello 3
+    
+</div>
+```
+With `lstrip_blocks`(you can't see the difference. please try selecting the text):
+```
+<div>
+
+        Hello 1
+
+        Hello 2
+
+        Hello 3
+
+</div>
+```
+If `trim_blocks` is enabled, the (only) first newline after the block is removed.
+Without `trim_blocks`(`lstrip_blocks` is disabled):
+```
+<div>
+            Hello 1
+            Hello 2
+            Hello 3
+    </div>
+```
+With `trim_blocks` and `lstrip_blocks`:
+```
+<div>
         Hello 1
         Hello 2
         Hello 3
-        Hello 4
-        Hello 5
-        Hello 6
-        Hello 7
-        Hello 8
-        Hello 9
-        Hello 10
-        and your age is 15.
-    </body>
-</html>
+</div>
 ```
-these statement is available:
-- `if` : insert the content in this statement if the expression is true.
-- `for` : loop and insert values to variables.
-- `with` : assign a value to a variable. variables defined with this statement is available until `end`
-- `set` : assign a value to a variable. variables defined with this statement don't have a scope.
-- `end` : represent the end of a statement. this is necessary for `if`, `for`, `with`.
-these code will be executed after transformed to julia code. So the basic syntax is the same as Julia.
+But, sometimes these options aren't perfect(like macro), and it's annoying to set these options all the time. So, you can use `autospace` option which automatically enables these options and remove extra spaces from macro.
 
-!!! warning "escape sequence in code blocks"
-    If you write code includes escape sequence, they will disappear except `\n`. This is not the problem in many cases, but if you want to do it, please let me know in issue.
+## Escaping
+It is important to apply HTML escaping in order to prevent XSS. So, `autoescape` is set to `true` by default.
+If you want to escape manually, you can disable this option, and use `e` or `escape` filter into expression blocks:
+```
+<div>
+    {{ value |> e }}
+</div>
+```
+Where `value` is `<script>This is injection attack</script>`
+```
+<div>
+    &lt;script&gt;This is injection attack&lt;/script&gt;
+</div>
+```
 
-And you can also insert variables in the text. Here is an example(`tmp_init = Dict("name"=>"watasu")`):
+## Raw Text
+Sometimes it is neccessary to ignore blocks and recognize it raw text. Then, you should use `raw` block:
 ```
-#input
-my name is {{ name }}.
-#output
-my name is watasu
+{% raw %}
+This is test for raw block
+{% you can write anything inside raw block %}
+{% endraw %}
 ```
-the variables inside
-```
-{{...}}
-```
-is replaced with values defined in `tmp_init` or template code.
+!!! warning "Julia block can't be used for raw text"
+    Julia block doesn't preserve inner text. Don't use it for raw text.
 
+## Template Inheritance
 ### Include Template
 You can include template with `{% include "(template filename)" %}` code block. This is the tiny example:
 ```
@@ -167,21 +224,117 @@ This code block have to be located at the top of the document, otherwise ignored
 If you write `{% extends (template filename) %}` in main template, parser will use `(template filename)` as the base template.
 And, you can write blocks in the main template with `{% block (block name) %}` and `{% endblock %}`.
 
-### Configurations
+### Inherite block
+Blocks defined in parent(even in ancestors) is inherited with `super()`:
+```
+# Grand Parent Template("grand.html")
+<div>
+    {% block body %}
+    Hello Grand Parents
+    {%- endblock %}
+</div>
+# Parent Template("parent.html")
+{% extends "grand.html" %}
+{% block body %}
+Hello Parent
+{% endblock %}
+# Child Template
+{% extends "parent.html" %}
+{% block body %}
+    Hello Child
+    {{ super() }}{{ super.super() }}
+{% endblock %}
+```
+The, we get this:
+```
+<div>
+    Hello Child
+    Hello Parent
+    Hello Grand Parents
+</div>
+```
+When you want to inherite ancestor's block, you just need to add `super.` before `super()`.
+
+## Control Flow
+There are 4 blocks available for control flow. `if`, `for`, `let` and `set`.
+These blocks are converted into the Julia code directly, and the syntax is completely same with Julia.
+
+### If
+`if` block adds the text when condition is true:
+```
+{% if (condition) %}
+    Hello
+{% end %}
+```
+
+### For
+`for` block repeats the text for specified times:
+```
+{% for i in 1:5 %}
+    Hello {{ i }}
+{% end %}
+```
+you can use variables defined inside of `for` block.
+
+### Let
+`let` block creates local variables which has the scope inside of this block:
+```
+{% let name = "Julia" %}
+    Hello {{ name }}
+{% end %}
+```
+This is equal to `with` block in Jinja2.
+
+### Set
+`set` block is converted into `global (variable) = (value)`. So you can use variables in every control blocks(not in expression blocks now).
+
+## Macro
+Macro is similar to function in Programming Language. In fact, OteraEngine converts macros into Julia function internally.
+This is the example:
+```
+{% macro input(name, value="", type="text", size=20) %}
+    <input type="{{ type }}" name="{{ name }}" value="{{
+        value|>e }}" size="{{ size }}">
+{% endmacro %}
+
+<html>
+    <head><title>MyPage</title></head>
+    <body>
+        {{ input("test") }}
+    </body>
+</html>
+``` 
+You should note that macro emits extra white space when you don't use any white space control options. So, it is strongly recommended to use `autospace` when you use macros.
+
+## Configurations
 there are six configurations:
-- `jl_block_start`: The string at the start of jl code blocks.
-- `jl_block_stop` : The string at the end of jl code blocks.
-- `tmp_block_start`: The string at the start of tmp code blocks.
-- `tmp_block_start` : The string at the end of tmp code blocks.
-- `variable_block_start` : The string at the start of variable blocks.
-- `variable_block_stop` : The string at the end of variable blocks.
+- `control_block_start`: the string at the start of tmp code blocks.
+- `control_block_end` : the string at the end of tmp code blocks.
+- `jl_block_start`: the string at the start of jl code blocks.
+- `jl_block_end` : the string at the end of jl code blocks.
+- `expression_block_start` : the string at the start of expression blocks.
+- `expression_block_end` : the string at the end of expression blocks.
+- `comment_block_start`: the string at the start of comment blocks.
+- `comment_block_end`: the string at the end of comment block.
+- `autospace`: the option to control space automatically.
+- `lstrip_blocks`: the option to strip left spaces.
+- `trim_blocks`: the option to remove the first newline after blocks.
+- `autoescape`: the option to automatically escape expression blocks
+- `dir`: the working directory which `include` and `extends` statements refers to
 and the default configuration is this:
 ```
-    "jl_block_start"=>"```",
-    "jl_block_stop"=>"```",
-    "tmp_block_start"=>"{%",
-    "tmp_block_stop"=>"%}",
-    "variable_block_start"=>"{{",
-    "variable_block_stop"=>"}}"
+"control_block_start"=>"{%",
+"control_block_end"=>"%}",
+"expression_block_start"=>"{{",
+"expression_block_end"=>"}}",
+"jl_block_start" => "{<",
+"jl_block_end" => ">}",
+"comment_block_start" => "{#",
+"comment_block_end" => "#}",
+"autospace" => false,
+"lstrip_blocks" => false,
+"trim_blocks" => false,
+"autoescape" => true,
+"dir" => pwd()
 ```
 configurations can be loaded from TOML file. You don't have to specify all the configurations(The rest uses the default settings).
