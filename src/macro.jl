@@ -32,6 +32,7 @@ function apply_macros(txt::String, macros::Dict{String, String}, config::ParserC
     re = Regex("$(config.expression_block[1])\\s*(?<name>.*?)(?<body>\\(.*?\\))\\s*$(config.expression_block[2])")
     m = match(re, txt)
     while !isnothing(m)
+        split(m[:name], ".")[end] == "super" && break
         if haskey(macros, m[:name])
             try
                 txt = txt[1:m.offset-1]*eval(Meta.parse("Base.@invokelatest _"*split(m[:name], ".")[end]*"_"*m[:body]))*txt[m.offset+length(m.match):end]

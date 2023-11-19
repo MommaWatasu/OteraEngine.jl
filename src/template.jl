@@ -4,6 +4,7 @@ This is the only structure and function of this package.
 This structure has 4 parameter,
 - `txt` is the path to the template file or template of String type.
 - `path` determines whether the parameter `txt` represents the file path. The default value is `true`.
+- `filters` is used to register non-builtin filters. Please see [filters]() for more details.
 - `config_path` is path to config file. The suffix of config file must be `toml`.
 - `config` is configuration of template. It is type of `Dict`, please see [configuraiton](#Configurations) for more detail.
 
@@ -170,7 +171,7 @@ end
 function (Tmp::Template)(tmp_init::Dict{String, T}, jl_init::Dict{String, N}, blocks::Vector{TmpBlock}) where {T, N}
     blocks = inherite_blocks(blocks, Tmp.blocks, Tmp.config.expression_block)
     if Tmp.super !== nothing
-        Tmp.super(tmp_init, blocks)
+        return Tmp.super(tmp_init, jl_init, blocks)
     end
 
     # preparation for tmp block
@@ -222,15 +223,6 @@ function (Tmp::Template)(tmp_init::Dict{String, T}, jl_init::Dict{String, N}, bl
     end
 
     return assign_variables(out_txt, tmp_init, Tmp.filters, Tmp.config)
-end
-
-function inherite_blocks(src::Vector{TmpBlock}, dst::Vector{TmpBlock}, expression_block::Tuple{String, String})
-    for i in 1 : length(src)
-        idx = findfirst(x->x.name==src[i].name, dst)
-        idx === nothing && continue
-        dst[idx] = process_super(dst[idx], src[i], expression_block)
-    end
-    return dst
 end
 
 function assign_variables(txt::String, tmp_init::Dict{String, T}, filters::Dict{String, Function}, config::ParserConfig) where T
