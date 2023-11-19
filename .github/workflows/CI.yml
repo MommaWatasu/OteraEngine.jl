@@ -8,7 +8,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest]
-        julia-version: ['1.8', 'latest']
+        julia-version: ['1.8', 'nightly']
     name: build OteraEngine
     steps:
       - uses: actions/checkout@v3
