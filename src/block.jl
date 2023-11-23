@@ -11,6 +11,8 @@ struct TmpBlock
     contents::Vector{Union{String, RawText, TmpStatement}}
 end
 
+CodeBlockVector = Vector{Union{String, RawText, TmpStatement, TmpBlock}}
+
 function (TB::TmpBlock)(filters::Dict{String, Function}, config::ParserConfig)
     code = ""
     for content in TB.contents
@@ -68,7 +70,7 @@ function Base.push!(a::TmpBlock, v::Union{String, RawText, TmpStatement})
 end
 
 struct TmpCodeBlock
-    contents::Vector{Union{String, RawText, TmpStatement, TmpBlock}}
+    contents::CodeBlockVector
 end
 
 function (TCB::TmpCodeBlock)(blocks::Vector{TmpBlock}, filters::Dict{String, Function}, config::ParserConfig)

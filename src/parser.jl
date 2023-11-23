@@ -226,7 +226,7 @@ function parse_template(txt::String, filters::Dict{String, Function}, config::Pa
     jl_codes = Array{String}(undef, 0)
     top_codes = Array{String}(undef, 0)
     tmp_codes = Array{TmpCodeBlock}(undef, 0)
-    code_block = Array{Union{String, RawText, TmpStatement, TmpBlock}}(undef, 0)
+    code_block = CodeBlockVector(undef, 0)
     out_txt = ""
 
     re = Regex("(?<left_space1>\\s*?)(?<left_nl>\n?)(?<left_space2>\\s*?)(?<left_token>($(regex_escape(config.control_block[1]))|$(regex_escape(config.jl_block[1]))))(?<code>[\\s\\S]*?)(?<right_token>($(regex_escape(config.control_block[2]))|$(regex_escape(config.jl_block[2]))))(?<right_nl>\\n?)(?<right_space>\\s*?)")
@@ -287,7 +287,7 @@ function parse_template(txt::String, filters::Dict{String, Function}, config::Pa
                 push!(blocks, code_block[end])
                 if depth == 0
                     push!(tmp_codes, TmpCodeBlock(code_block))
-                    code_block = Array{Union{String, RawText, TmpStatement}}(undef, 0)
+                    code_block = CodeBlockVector(undef, 0)
                     out_txt *= "<tmpcode$block_count>"
                     block_count += 1
                 end
@@ -330,7 +330,7 @@ function parse_template(txt::String, filters::Dict{String, Function}, config::Pa
                     push!(code_block, TmpStatement("end"))
                     if depth == 0
                         push!(tmp_codes, TmpCodeBlock(code_block))
-                        code_block = Array{Union{String, RawText, TmpStatement}}(undef, 0)
+                        code_block = CodeBlockVector(undef, 0)
                         out_txt *= "<tmpcode$block_count>"
                         block_count += 1
                     end
