@@ -1,4 +1,11 @@
 {% extends "include_extends2.html" %}
+
+{% block title %} overridden title{% endblock %}
+
+{% block extra_head %}
+    <script>alert("hello");</script>
+{% endblock %}
+
 {% block body %}
 {% include "include_extends3.html" %}
             <h1>hello</h1>
