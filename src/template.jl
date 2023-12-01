@@ -23,10 +23,8 @@ julia> tmp(tmp_init = init)
 """
 struct Template
     super::Union{Nothing, Template}
-    txt::String
-    tmp_codes::Vector{TmpCodeBlock}
+    elements::Vector{Union{RawText, JLCodeBlock, TmpCodeBlock, TmpBlock, VariableBlock, SuperBlock}}
     top_codes::Vector{String}
-    jl_codes::Vector{String}
     blocks::Vector{TmpBlock}
     filters::Dict{String, Function}
     config::ParserConfig
@@ -109,14 +107,22 @@ end
 
 Base.showerror(io::IO, e::TemplateError) = print(io, "TemplateError: "*e.msg)
 
-function (Tmp::Template)(; tmp_init::Dict{String, T}=Dict{String, Any}(), jl_init::Dict{String, N}=Dict{String, Any}()) where {T, N}
+function (Tmp::Template)(; init::Dict{String, T}=Dict{String, Any}()) where {T}
     if Tmp.super !== nothing
-        return Tmp.super(tmp_init, jl_init, Tmp.blocks)
+        return Tmp.super(init, Tmp.blocks)
     end
 
-    # preparation for tmp block
+    def = build_render(Tmp.elements, init, Tmp.filters, Tmp.config.autoescape)
+    eval(Meta.parse(def))
+    try
+        return Base.invokelatest(template_render, values(init)...)
+    catch e
+        throw(TemplateError("failed to render: following error occurred during rendering:\n$e"))
+    end
+
+    # preparation for render func
     tmp_args = ""
-    for v in keys(tmp_init)
+    for v in keys(init)
         tmp_args*=(v*",")
     end
     
@@ -249,4 +255,46 @@ function assign_variables(txt::String, tmp_init::Dict{String, T}, filters::Dict{
         end
     end
     return txt
+end
+
+RawText, JLCodeBlock, TmpCodeBlock, TmpBlock, VariableBlock, SuperBlock
+
+function build_render(elements, init::Dict{String, T}, filters::Dict{String, Function}, autoescape::Bool) where {T}
+    args = ""
+    for v in keys(init)
+        args*=(v*",")
+    end
+    def = "function template_render($args);txt=\"\";"
+    for e in elements
+        t = typeof(e)
+        if t == RawText
+            def *= "txt *= \"$(replace(e.txt, "\""=>"\\\""))\";"
+        elseif t == JLCodeBlock
+            def *= "txt *= string(begin;$(e.code);end);"
+        elseif t == TmpCodeBlock
+            def *= e(init, filters, autoescape)
+        elseif t == TmpBlock
+            def *= e(init, filters, autoescape)
+        elseif t == VariableBlock
+            if occursin("|>", e.exp)
+                exp = map(strip, split(e.exp, "|>"))
+                f = filters[exp[2]]
+                if autoescape && f != htmlesc
+                    def *= "txt *= htmlesc($(string(Symbol(f)))(string($(exp[1]))));"
+                else
+                    def *= "txt *= $(string(Symbol(f)))(string($(exp[1])));"
+                end
+            else
+                if autoescape
+                    def *= "txt *= htmlesc(string($(e.exp)));"
+                else
+                    def *= "txt *= string($(e.exp));"
+                end
+            end
+        elseif t == SuperBlock
+            throw(TemplateError("invalid super block is found"))
+        end
+    end
+    def *= "return txt;end"
+    return def
 end

@@ -2,6 +2,18 @@ struct RawText
     txt::String
 end
 
+struct JLCodeBlock
+    code::String
+end
+
+struct SuperBlock
+    count::Int
+end
+
+struct VariableBlock
+    exp::String
+end
+
 struct TmpStatement
     st::String
 end
@@ -11,17 +23,38 @@ struct TmpBlock
     contents::Vector{Union{String, RawText, TmpStatement}}
 end
 
-CodeBlockVector = Vector{Union{String, RawText, TmpStatement, TmpBlock}}
+CodeBlockVector = Vector{Union{String, RawText, TmpStatement, TmpBlock, VariableBlock, SuperBlock}}
 
-function (TB::TmpBlock)(filters::Dict{String, Function}, config::ParserConfig)
+function (TB::TmpBlock)(init::Dict{String, T}, filters::Dict{String, Function}, autoescape::Bool) where {T}
     code = ""
     for content in TB.contents
-        if typeof(content) == TmpStatement
+        t = typeof(content)
+        if t == TmpStatement
             code *= "$(content.st);"
-        elseif typeof(content) == RawText
-            code *= ("txt *= \"$(replace(content.txt, "\""=>"\\\""))\";")
+        elseif t == VariableBlock
+            if occursin("|>", content.exp)
+                exp = map(strip, split(content.exp, "|>"))
+                if exp[1] in keys(init)
+                    f = filters[exp[2]]
+                    if autoescape && f != htmlesc
+                        code *= "txt *= htmlesc($(string(Symbol(f)))(string($(content.exp))));"
+                    else
+                        code *= "txt *= $(string(Symbol(f)))(string($(content.exp)));"
+                    end
+                end
+            else
+                if content.exp in keys(init)
+                    if autoescape
+                        code *= "txt *= htmlesc(string($(content.exp)));"
+                    else
+                        code *= "txt *= string($(content.exp));"
+                    end
+                end
+            end
+        elseif t == RawText
+            code *= "txt *= \"$(replace(content.txt, "\""=>"\\\""))\";"
         else
-            code *= ("txt *= \"$(replace(apply_variables(content, filters, config), "\""=>"\\\""))\";")
+            code *= "txt *= \"$(replace(content, "\""=>"\\\""))\";"
         end
     end
     return code
@@ -70,26 +103,39 @@ function Base.push!(a::TmpBlock, v::Union{String, RawText, TmpStatement})
 end
 
 struct TmpCodeBlock
+    #Union{TmpBlock, RawText, String, TmpStatement}
     contents::CodeBlockVector
 end
 
-function (TCB::TmpCodeBlock)(blocks::Vector{TmpBlock}, filters::Dict{String, Function}, config::ParserConfig)
-    code = "txt=\"\";"
+function (TCB::TmpCodeBlock)(init::Dict{String, T}, filters::Dict{String, Function}, autoescape::Bool) where {T}
+    code = ""
     for content in TCB.contents
-        if typeof(content) == TmpStatement
+        t = typeof(content)
+        if t == TmpStatement
             code *= "$(content.st);"
-        elseif typeof(content) == TmpBlock
-            idx = findfirst(x->x.name==content.name, blocks)
-            idx === nothing && throw(TemplateError("invalid block: failed to appy block named `$(content.name)`"))
-            code *= blocks[idx](filters, config)
-        elseif typeof(content) == RawText
-            code *= ("txt *= \"$(replace(content.txt, "\""=>"\\\""))\";")
+        elseif t == TmpBlock
+            code *= content(init, filters, autoescape)
+        elseif t == VariableBlock
+            if occursin("|>", content.exp)
+                exp = map(strip, split(content.exp, "|>"))
+                f = filters[exp[2]]
+                if autoescape && f != htmlesc
+                    code *= "txt *= htmlesc($(string(Symbol(f)))(string($(content.exp))));"
+                else
+                    code *= "txt *= $(string(Symbol(f)))(string($(content.exp)));"
+                end
+            else
+                if autoescape
+                    code *= "txt *= htmlesc(string($(content.exp)));"
+                else
+                    code *= "txt *= string($(content.exp));"
+                end
+            end
+        elseif t == RawText
+            code *= "txt *= \"$(replace(content.txt, "\""=>"\\\""))\";"
         else
-            code *= ("txt *= \"$(replace(apply_variables(content, filters, config), "\""=>"\\\""))\";")
+            code *= "txt *= \"$(replace(content, "\""=>"\\\""))\";"
         end
-    end
-    if length(TCB.contents) != 1 || typeof(TCB.contents[1]) == TmpBlock
-        code *= "push!(txts, txt);"
     end
     return code
 end

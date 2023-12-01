@@ -158,8 +158,6 @@ function get_block_config(code::String)
     elseif code[1] == '+'
         lstrip_block = '+'
         code = code[2:end]
-    else
-        lstrip_block = ' '
     end
     if code[end] == '-'
         trim_block = '-'
@@ -167,8 +165,6 @@ function get_block_config(code::String)
     elseif code[end] == '+'
         trim_block = '+'
         code = code[1:end-1]
-    else
-        trim_block = ' '
     end
     return code, lstrip_block, trim_block
 end
@@ -205,6 +201,7 @@ function parse_template(txt::String, filters::Dict{String, Function}, config::Pa
     block_tokens = Dict(
         config.control_block[1] => config.control_block[2],
         config.jl_block[1] => config.jl_block[2],
+        config.expression_block[1] => config.expression_block[2]
     )
     # variables for lstrip and trim
     lstrip_block = ' ' 
@@ -223,13 +220,14 @@ function parse_template(txt::String, filters::Dict{String, Function}, config::Pa
     idx = 1
 
     # prepare the arrays to store the code blocks
+    elements = Vector{Union{RawText, JLCodeBlock, TmpCodeBlock, TmpBlock, VariableBlock, SuperBlock}}(undef, 0)
     jl_codes = Array{String}(undef, 0)
     top_codes = Array{String}(undef, 0)
     tmp_codes = Array{TmpCodeBlock}(undef, 0)
     code_block = CodeBlockVector(undef, 0)
     out_txt = ""
 
-    re = Regex("(?<left_space1>\\s*?)(?<left_nl>\n?)(?<left_space2>\\s*?)(?<left_token>($(regex_escape(config.control_block[1]))|$(regex_escape(config.jl_block[1]))))(?<code>[\\s\\S]*?)(?<right_token>($(regex_escape(config.control_block[2]))|$(regex_escape(config.jl_block[2]))))(?<right_nl>\\n?)(?<right_space>\\s*?)")
+    re = Regex("(?<left_space1>\\s*?)(?<left_nl>\n?)(?<left_space2>\\s*?)(?<left_token>($(regex_escape(config.control_block[1]))|$(regex_escape(config.jl_block[1]))|$(regex_escape(config.expression_block[1]))))(?<code>[\\s\\S]*?)(?<right_token>($(regex_escape(config.control_block[2]))|$(regex_escape(config.jl_block[2]))|$(regex_escape(config.expression_block[2]))))(?<right_nl>\\n?)(?<right_space>\\s*?)")
     for m in eachmatch(re, txt)
         if block_tokens[m[:left_token]] != m[:right_token]
             throw(ParserError("token mismatch: beginning and end of the block doesn't match"))
@@ -255,7 +253,7 @@ function parse_template(txt::String, filters::Dict{String, Function}, config::Pa
                         push!(code_block[end], RawText(new_txt))
                     else
                         if depth == 0
-                            out_txt *= new_txt
+                            push!(elements, RawText(new_txt))
                         else
                             push!(code_block, RawText(new_txt))
                         end
@@ -273,7 +271,7 @@ function parse_template(txt::String, filters::Dict{String, Function}, config::Pa
                 push!(code_block[end], new_txt)
             else
                 if depth == 0
-                    out_txt *= new_txt
+                    push!(elements, RawText(new_txt))
                 else
                     push!(code_block, new_txt)
                 end
@@ -286,9 +284,8 @@ function parse_template(txt::String, filters::Dict{String, Function}, config::Pa
                 in_block = false
                 push!(blocks, code_block[end])
                 if depth == 0
-                    push!(tmp_codes, TmpCodeBlock(code_block))
+                    push!(elements, TmpCodeBlock(code_block))
                     code_block = CodeBlockVector(undef, 0)
-                    out_txt *= "<tmpcode$block_count>"
                     block_count += 1
                 end
                 continue
@@ -309,12 +306,12 @@ function parse_template(txt::String, filters::Dict{String, Function}, config::Pa
             # assignment for julia
             elseif operator == "set"
                 if in_block
-                    push!(code_block[end], TmpStatement("global "*code))
+                    push!(code_block[end], TmpStatement(code))
                 else
                     if depth == 0
-                        push!(tmp_codes, TmpCodeBlock([TmpStatement(code[4:end])]))
+                        push!(elements, TmpCodeBlock([TmpStatement(code[4:end])]))
                     else
-                        push!(code_block, TmpStatement("global "*code))
+                        push!(code_block, TmpStatement(code))
                     end
                 end
 
@@ -329,9 +326,8 @@ function parse_template(txt::String, filters::Dict{String, Function}, config::Pa
                     depth -= 1
                     push!(code_block, TmpStatement("end"))
                     if depth == 0
-                        push!(tmp_codes, TmpCodeBlock(code_block))
+                        push!(elements, TmpCodeBlock(code_block))
                         code_block = CodeBlockVector(undef, 0)
-                        out_txt *= "<tmpcode$block_count>"
                         block_count += 1
                     end
                 end
@@ -358,7 +354,7 @@ function parse_template(txt::String, filters::Dict{String, Function}, config::Pa
                 push!(code_block[end], new_txt)
             else
                 if depth == 0
-                    out_txt *= new_txt
+                    push!(elements, RawText(new_txt))
                 else
                     push!(code_block, new_txt)
                 end
@@ -371,14 +367,39 @@ function parse_template(txt::String, filters::Dict{String, Function}, config::Pa
                 code = replace(code, t.match=>"")
             end
             push!(top_codes, tops)
-            push!(jl_codes, code)
-            out_txt*="<jlcode$(jl_block_count)>"
+            push!(elements, JLCodeBlock(code))
             jl_block_count += 1
+        
+        # expression block
+        elseif m[:left_token] == config.expression_block[1]
+            code = string(strip(m[:code]))
+            new_txt, idx = process_space(txt, m, idx, '+', '+', config)
+
+            exp = nothing
+            func = match(r"(?<name>>*?)\(.*?\)", code)
+            if func === nothing
+                exp = VariableBlock(code)
+            else
+                exp = SuperBlock(len(split(code, ".")))
+            end
+            # check depth
+            if in_block
+                push!(code_block[end], new_txt)
+                push!(code_block[end], exp)
+            else
+                if depth == 0
+                    push!(elements, RawText(new_txt))
+                    push!(elements, exp)
+                else
+                    push!(code_block, new_txt)
+                    push!(code_block, exp)
+                end
+            end
         
         else
             throw(ParserError("This block is invalid: {$(m[:left_token]*" "*m[:code]*" "*m[:right_token])}"))
         end
     end
-    out_txt *= txt[idx:end]
-    return super, out_txt, tmp_codes, top_codes, jl_codes, blocks
+    push!(elements, RawText(txt[idx:end]))
+    return super, elements, top_codes, blocks
 end
