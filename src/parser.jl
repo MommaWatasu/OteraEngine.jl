@@ -220,12 +220,9 @@ function parse_template(txt::String, filters::Dict{String, Function}, config::Pa
     idx = 1
 
     # prepare the arrays to store the code blocks
-    elements = Vector{Union{RawText, JLCodeBlock, TmpCodeBlock, TmpBlock, VariableBlock, SuperBlock}}(undef, 0)
-    jl_codes = Array{String}(undef, 0)
+    elements = Vector{Union{String, JLCodeBlock, TmpCodeBlock, TmpBlock, VariableBlock, SuperBlock}}(undef, 0)
     top_codes = Array{String}(undef, 0)
-    tmp_codes = Array{TmpCodeBlock}(undef, 0)
     code_block = CodeBlockVector(undef, 0)
-    out_txt = ""
 
     re = Regex("(?<left_space1>\\s*?)(?<left_nl>\n?)(?<left_space2>\\s*?)(?<left_token>($(regex_escape(config.control_block[1]))|$(regex_escape(config.jl_block[1]))|$(regex_escape(config.expression_block[1]))))(?<code>[\\s\\S]*?)(?<right_token>($(regex_escape(config.control_block[2]))|$(regex_escape(config.jl_block[2]))|$(regex_escape(config.expression_block[2]))))(?<right_nl>\\n?)(?<right_space>\\s*?)")
     for m in eachmatch(re, txt)
@@ -250,12 +247,12 @@ function parse_template(txt::String, filters::Dict{String, Function}, config::Pa
                     new_txt, idx = process_space(txt, m, idx, lstrip_block, trim_block, config)
                     # check depth
                     if in_block
-                        push!(code_block[end], RawText(new_txt))
+                        push!(code_block[end], new_txt)
                     else
                         if depth == 0
-                            push!(elements, RawText(new_txt))
+                            push!(elements, new_txt)
                         else
-                            push!(code_block, RawText(new_txt))
+                            push!(code_block, new_txt)
                         end
                     end
                     continue
@@ -271,7 +268,7 @@ function parse_template(txt::String, filters::Dict{String, Function}, config::Pa
                 push!(code_block[end], new_txt)
             else
                 if depth == 0
-                    push!(elements, RawText(new_txt))
+                    push!(elements, new_txt)
                 else
                     push!(code_block, new_txt)
                 end
@@ -321,7 +318,7 @@ function parse_template(txt::String, filters::Dict{String, Function}, config::Pa
                     throw(ParserError("end is found at block depth 0"))
                 end
                 if in_block
-                    push!(block[end], TmpStatement("end"))
+                    push!(code_block[end], TmpStatement("end"))
                 else
                     depth -= 1
                     push!(code_block, TmpStatement("end"))
@@ -354,7 +351,7 @@ function parse_template(txt::String, filters::Dict{String, Function}, config::Pa
                 push!(code_block[end], new_txt)
             else
                 if depth == 0
-                    push!(elements, RawText(new_txt))
+                    push!(elements, new_txt)
                 else
                     push!(code_block, new_txt)
                 end
@@ -367,7 +364,7 @@ function parse_template(txt::String, filters::Dict{String, Function}, config::Pa
                 code = replace(code, t.match=>"")
             end
             push!(top_codes, tops)
-            push!(elements, JLCodeBlock(code))
+            push!(elements, JLCodeBlock(string(strip(code))))
             jl_block_count += 1
         
         # expression block
@@ -388,7 +385,7 @@ function parse_template(txt::String, filters::Dict{String, Function}, config::Pa
                 push!(code_block[end], exp)
             else
                 if depth == 0
-                    push!(elements, RawText(new_txt))
+                    push!(elements, new_txt)
                     push!(elements, exp)
                 else
                     push!(code_block, new_txt)
@@ -400,6 +397,6 @@ function parse_template(txt::String, filters::Dict{String, Function}, config::Pa
             throw(ParserError("This block is invalid: {$(m[:left_token]*" "*m[:code]*" "*m[:right_token])}"))
         end
     end
-    push!(elements, RawText(txt[idx:end]))
+    push!(elements, txt[idx:end])
     return super, elements, top_codes, blocks
 end

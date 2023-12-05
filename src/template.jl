@@ -23,7 +23,7 @@ julia> tmp(tmp_init = init)
 """
 struct Template
     super::Union{Nothing, Template}
-    elements::Vector{Union{RawText, JLCodeBlock, TmpCodeBlock, TmpBlock, VariableBlock, SuperBlock}}
+    elements::Vector{Union{String, JLCodeBlock, TmpCodeBlock, TmpBlock, VariableBlock, SuperBlock}}
     top_codes::Vector{String}
     blocks::Vector{TmpBlock}
     filters::Dict{String, Function}
@@ -112,189 +112,62 @@ function (Tmp::Template)(; init::Dict{String, T}=Dict{String, Any}()) where {T}
         return Tmp.super(init, Tmp.blocks)
     end
 
-    def = build_render(Tmp.elements, init, Tmp.filters, Tmp.config.autoescape)
-    eval(Meta.parse(def))
+    eval(build_render(Tmp.elements, init, Tmp.filters, Tmp.config.autoescape))
     try
         return Base.invokelatest(template_render, values(init)...)
     catch e
         throw(TemplateError("failed to render: following error occurred during rendering:\n$e"))
     end
-
-    # preparation for render func
-    tmp_args = ""
-    for v in keys(init)
-        tmp_args*=(v*",")
-    end
-    
-    # execute tmp block
-    out_txt = Tmp.txt
-    tmp_def = "function tmp_func("*tmp_args*");txts=Array{String}(undef, 0);"
-    for tmp_code in Tmp.tmp_codes
-        tmp_def*=tmp_code(Tmp.blocks, Tmp.filters, Tmp.config)
-    end
-    tmp_def*="end"
-    # escape sequence is processed here and they don't remain in function except `\n`.
-    # If I have to aplly those escape sequence, I sohuld replace them like this:
-    # \r -> \\r
-    # And the same this occurs in jl code block
-    eval(Meta.parse(tmp_def))
-    txts = ""
-    try
-        txts = Base.invokelatest(tmp_func, values(tmp_init)...)
-    catch e
-        throw(TemplateError("$e has occurred during processing tmp code blocks. if you can't find any problems in your template, please report issue on https://github.com/MommaWatasu/OteraEngine.jl/issues."))
-    end
-    for (i, txt) in enumerate(txts)
-        out_txt = replace(out_txt, "<tmpcode$i>"=>txt)
-    end
-
-    # preparation for jl block
-    jl_dargs = ""
-    jl_args = ""
-    for p in jl_init
-        jl_dargs*=(p[1]*",")
-        if typeof(p[2]) <: Number
-            jl_args*=(p[2]*",")
-        else
-            jl_args*=("\""*p[2]*"\""*",")
-        end
-    end
-
-    # execute tmp block
-    current_env = Base.active_project()
-    for (i, jl_code) in enumerate(Tmp.jl_codes)
-        jl_code = replace("using Pkg; Pkg.activate(\"$current_env\"); "*Tmp.top_codes[i]*"function f("*jl_dargs*");"*jl_code*";end; println(f("*jl_args*"))", "\\"=>"\\\\")
-        try
-            out_txt = replace(out_txt, "<jlcode$i>"=>rstrip(read(`julia -e $jl_code`, String)))
-        catch e
-            throw(TemplateError("$e has occurred during processing jl code blocks. if you can't find any problems in your template, please report issue on https://github.com/MommaWatasu/OteraEngine.jl/issues."))
-        end
-    end
-    
-    return assign_variables(out_txt, tmp_init, Tmp.filters, Tmp.config)
 end
 
-function (Tmp::Template)(tmp_init::Dict{String, T}, jl_init::Dict{String, N}, blocks::Vector{TmpBlock}) where {T, N}
-    blocks = inherite_blocks(blocks, Tmp.blocks, Tmp.config.expression_block)
+function (Tmp::Template)(init::Dict{String, T}, blocks::Vector{TmpBlock}) where {T}
+    blocks = inherite_blocks(blocks, Tmp.blocks)
     if Tmp.super !== nothing
-        return Tmp.super(tmp_init, jl_init, blocks)
+        return Tmp.super(init, blocks)
     end
+    elements = apply_inheritance(Tmp.elements, blocks)
 
-    # preparation for tmp block
-    tmp_args = ""
-    for v in keys(tmp_init)
-        tmp_args*=(v*",")
-    end
-
-    # execute tmp block
-    out_txt = Tmp.txt
-    tmp_def = "function tmp_func("*tmp_args*");txts=Array{String}(undef, 0);"
-    for tmp_code in Tmp.tmp_codes
-        tmp_def*=tmp_code(blocks, Tmp.filters, Tmp.config)
-    end
-    tmp_def*="end"
-
-    eval(Meta.parse(tmp_def))
-    txts = ""
+    eval(build_render(elements, init, Tmp.filters, Tmp.config.autoescape))
     try
-        txts = Base.invokelatest(tmp_func, values(tmp_init)...)
+        return Base.invokelatest(template_render, values(init)...)
     catch e
-        throw(TemplateError("$e has occurred during processing tmp code blocks. if you can't find any problems in your template, please report issue on https://github.com/MommaWatasu/OteraEngine.jl/issues."))
+        thtow(TemplateError("failed to render: following error occurred during rendering:\n$e"))
     end
-    for (i, txt) in enumerate(txts)
-        out_txt = replace(out_txt, "<tmpcode$i>"=>txt)
-    end
-
-    # preparation for jl block
-    jl_dargs = ""
-    jl_args = ""
-    for p in jl_init
-        jl_dargs*=(p[1]*",")
-        if typeof(p[2]) <: Number
-            jl_args*=(p[2]*",")
-        else
-            jl_args*=("\""*p[2]*"\""*",")
-        end
-    end
-
-    # execute jl block
-    current_env = Base.active_project()
-    for (i, jl_code) in enumerate(Tmp.jl_codes)
-        jl_code = replace("using Pkg; Pkg.activate(\"$current_env\"); "*Tmp.top_codes[i]*"function f("*jl_dargs*");"*jl_code*";end; println(f("*jl_args*"))", "\\"=>"\\\\")
-        try
-            out_txt = replace(out_txt, "<jlcode$i>"=>rstrip(read(`julia -e $jl_code`, String)))
-        catch e
-            throw(TemplateError("$e has occurred during processing jl code blocks. if you can't find any problems in your template, please report issue on https://github.com/MommaWatasu/OteraEngine.jl/issues."))
-        end
-    end
-
-    return assign_variables(out_txt, tmp_init, Tmp.filters, Tmp.config)
 end
-
-function assign_variables(txt::String, tmp_init::Dict{String, T}, filters::Dict{String, Function}, config::ParserConfig) where T
-    re = Regex("$(config.expression_block[1])\\s*(?<variable>[\\s\\S]*?)\\s*?$(config.expression_block[2])")
-    for m in eachmatch(re, txt)
-        if occursin("|>", m[:variable])
-            exp = map(strip, split(m[:variable], "|>"))
-            if exp[1] in keys(tmp_init)
-                f = filters[exp[2]]
-                if config.autoescape && f != htmlesc
-                    txt = replace(txt, m.match=>htmlesc(f(string(tmp_init[exp[1]]))))
-                else
-                    txt = replace(txt, m.match=>f(string(tmp_init[exp[1]])))
-                end
-            end
-        else
-            if m[:variable] in keys(tmp_init)
-                if config.autoescape
-                    txt = replace(txt, m.match=>htmlesc(string(tmp_init[m[:variable]])))
-                else
-                    txt = replace(txt, m.match=>tmp_init[m[:variable]])
-                end
-            end
-        end
-    end
-    return txt
-end
-
-RawText, JLCodeBlock, TmpCodeBlock, TmpBlock, VariableBlock, SuperBlock
 
 function build_render(elements, init::Dict{String, T}, filters::Dict{String, Function}, autoescape::Bool) where {T}
-    args = ""
-    for v in keys(init)
-        args*=(v*",")
+    body = quote
+        txt = ""
     end
-    def = "function template_render($args);txt=\"\";"
     for e in elements
         t = typeof(e)
-        if t == RawText
-            def *= "txt *= \"$(replace(e.txt, "\""=>"\\\""))\";"
+        if t == String
+            push!(body.args, :(txt *= $(replace(e, "\""=>"\\\""))))
         elseif t == JLCodeBlock
-            def *= "txt *= string(begin;$(e.code);end);"
+            push!(body.args, :(txt *= string(begin; $(Meta.parse(e.code));end)))
         elseif t == TmpCodeBlock
-            def *= e(init, filters, autoescape)
+            push!(body.args, e(filters, autoescape))
         elseif t == TmpBlock
-            def *= e(init, filters, autoescape)
+            push!(body.args, e(filters, autoescape))
         elseif t == VariableBlock
             if occursin("|>", e.exp)
                 exp = map(strip, split(e.exp, "|>"))
                 f = filters[exp[2]]
                 if autoescape && f != htmlesc
-                    def *= "txt *= htmlesc($(string(Symbol(f)))(string($(exp[1]))));"
+                    push!(body.args, :(txt *= htmlesc($(Symbol(f))(string($(Symbol(exp[1])))))))
                 else
-                    def *= "txt *= $(string(Symbol(f)))(string($(exp[1])));"
+                    push!(body.args, :(txt *= Symbol(f)(string($(Symbol(exp[1]))))))
                 end
             else
                 if autoescape
-                    def *= "txt *= htmlesc(string($(e.exp)));"
+                    push!(body.args, :(txt *= htmlesc(string($(Symbol(e.exp))))))
                 else
-                    def *= "txt *= string($(e.exp));"
+                    push!(body.args, :(txt *= string($(Symbol(e.exp)))))
                 end
             end
         elseif t == SuperBlock
             throw(TemplateError("invalid super block is found"))
         end
     end
-    def *= "return txt;end"
-    return def
+    return Expr(:function, Expr(:call, :template_render, map(Symbol, collect(keys(init)))...), body)
 end

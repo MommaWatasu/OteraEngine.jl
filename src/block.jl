@@ -1,7 +1,3 @@
-struct RawText
-    txt::String
-end
-
 struct JLCodeBlock
     code::String
 end
@@ -20,12 +16,16 @@ end
 
 struct TmpBlock
     name::String
-    contents::Vector{Union{String, RawText, TmpStatement}}
+    contents::Vector{Union{String, TmpStatement}}
 end
 
-CodeBlockVector = Vector{Union{String, RawText, TmpStatement, TmpBlock, VariableBlock, SuperBlock}}
+function Base.push!(a::TmpBlock, v::Union{String, TmpStatement})
+    push!(a.contents, v)
+end
 
-function (TB::TmpBlock)(init::Dict{String, T}, filters::Dict{String, Function}, autoescape::Bool) where {T}
+CodeBlockVector = Vector{Union{String, TmpStatement, TmpBlock, VariableBlock, SuperBlock}}
+
+function (TB::TmpBlock)(filters::Dict{String, Function}, autoescape::Bool)
     code = ""
     for content in TB.contents
         t = typeof(content)
@@ -34,30 +34,24 @@ function (TB::TmpBlock)(init::Dict{String, T}, filters::Dict{String, Function}, 
         elseif t == VariableBlock
             if occursin("|>", content.exp)
                 exp = map(strip, split(content.exp, "|>"))
-                if exp[1] in keys(init)
-                    f = filters[exp[2]]
-                    if autoescape && f != htmlesc
-                        code *= "txt *= htmlesc($(string(Symbol(f)))(string($(content.exp))));"
-                    else
-                        code *= "txt *= $(string(Symbol(f)))(string($(content.exp)));"
-                    end
+                f = filters[exp[2]]
+                if autoescape && f != htmlesc
+                    code *= "txt *= htmlesc($(string(Symbol(f)))(string($(content.exp))));"
+                else
+                    code *= "txt *= $(string(Symbol(f)))(string($(content.exp)));"
                 end
             else
-                if content.exp in keys(init)
-                    if autoescape
-                        code *= "txt *= htmlesc(string($(content.exp)));"
-                    else
-                        code *= "txt *= string($(content.exp));"
-                    end
+                if autoescape
+                    code *= "txt *= htmlesc(string($(content.exp)));"
+                else
+                    code *= "txt *= string($(content.exp));"
                 end
             end
-        elseif t == RawText
-            code *= "txt *= \"$(replace(content.txt, "\""=>"\\\""))\";"
-        else
+        elseif t == String
             code *= "txt *= \"$(replace(content, "\""=>"\\\""))\";"
         end
     end
-    return code
+    return Expr(:block, Meta.parse(code).args...)
 end
 
 function get_string(tb::TmpBlock)
@@ -65,41 +59,58 @@ function get_string(tb::TmpBlock)
     for content in tb.contents
         if typeof(content) == String
             txt *= content
-        elseif typeof(content) == RawText
-            txt *= content.txt
         end
     end
     return txt
 end
 
-function process_super(parent::TmpBlock, child::TmpBlock, expression_block::Tuple{String, String})
+function process_super(child::TmpBlock, parent::TmpBlock)
     for i in 1 : length(child.contents)
-        if typeof(child.contents[i]) == String
-            re = Regex("$(expression_block[1])\\s*?(?<body>(super.)*)super\\(\\)\\s*$(expression_block[2])")
-            for m in eachmatch(re, child.contents[i])
-                if m[:body] == ""
-                    child.contents[i] = replace(child.contents[i], m.match=>get_string(parent))
-                else
-                    child.contents[i] = replace(child.contents[i], m.match=>"{{$(m[:body][7:end])super()}}")
-                end
+        if typeof(child.contents[i]) == SuperBlock
+            child.contents[i].count -= 1
+            if child.contents[i].count == 0
+                child.contents[i] = get_string(parent)
             end
         end
     end
     return child
 end
 
-function inherite_blocks(src::Vector{TmpBlock}, dst::Vector{TmpBlock}, expression_block::Tuple{String, String})
+function inherite_blocks(src::Vector{TmpBlock}, dst::Vector{TmpBlock})
     for i in 1 : length(src)
         idx = findfirst(x->x.name==src[i].name, dst)
-        idx === nothing && continue
-        dst[idx] = process_super(dst[idx], src[i], expression_block)
+        if idx === nothing
+            push!(dst, src[i])
+        else
+            dst[idx] = process_super(src[i], dst[idx])
+        end
     end
     return dst
 end
 
-
-function Base.push!(a::TmpBlock, v::Union{String, RawText, TmpStatement})
-    push!(a.contents, v)
+function apply_inheritance(elements, blocks::Vector{TmpBlock})
+    for i in eachindex(elements)
+        if typeof(elements[i]) == TmpCodeBlock
+            idxs = findall(x->typeof(x)==TmpBlock, elements[i].contents)
+            length(idxs) == 0 && continue
+            for j in idxs
+                idx = findfirst(x->x.name==elements[i].contents[j].name, blocks)
+                if idx === nothing
+                    elements[i].contents[j] = ""
+                else
+                    elements[i].contents[j] = blocks[idx]
+                end
+            end
+        elseif typeof(elements[i]) == TmpBlock
+            idx = findfirst(x->x.name==elements[i], blocks)
+            if idx === nothing
+                elements[i] = ""
+            else
+                elements[i] = blocks[idx]
+            end
+        end
+    end
+    return elements
 end
 
 struct TmpCodeBlock
@@ -107,7 +118,7 @@ struct TmpCodeBlock
     contents::CodeBlockVector
 end
 
-function (TCB::TmpCodeBlock)(init::Dict{String, T}, filters::Dict{String, Function}, autoescape::Bool) where {T}
+function (TCB::TmpCodeBlock)(filters::Dict{String, Function}, autoescape::Bool)
     code = ""
     for content in TCB.contents
         t = typeof(content)
@@ -131,33 +142,9 @@ function (TCB::TmpCodeBlock)(init::Dict{String, T}, filters::Dict{String, Functi
                     code *= "txt *= string($(content.exp));"
                 end
             end
-        elseif t == RawText
-            code *= "txt *= \"$(replace(content.txt, "\""=>"\\\""))\";"
-        else
+        elseif t == String
             code *= "txt *= \"$(replace(content, "\""=>"\\\""))\";"
         end
     end
-    return code
-end
-
-function apply_variables(content, filters::Dict{String, Function}, config::ParserConfig)
-    re = Regex("$(config.expression_block[1])\\s*(?<variable>[\\s\\S]*?)\\s*?$(config.expression_block[2])")
-    for m in eachmatch(re, content)
-        if occursin("|>", m[:variable])
-            exp = split(m[:variable], "|>")
-            f = filters[exp[2]]
-            if config.autoescape && f != htmlesc
-                content = content[1:m.offset-1] * "\$(htmlesc($f(string($(exp[1])))))" *  content[m.offset+length(m.match):end]
-            else
-                content = content[1:m.offset-1] * "\$($f(string($(exp[1]))))" *  content[m.offset+length(m.match):end]
-            end
-        else
-            if config.autoescape
-                content = content[1:m.offset-1] * "\$(htmlesc(string($(m[:variable]))))" *  content[m.offset+length(m.match):end]
-            else
-                content = content[1:m.offset-1] * "\$" * m[:variable] *  content[m.offset+length(m.match):end]
-            end
-        end
-    end
-    return content
+    return Expr(:block, Meta.parse(code).args...)
 end
