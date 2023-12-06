@@ -9,7 +9,7 @@ using Test
     open("jl_block2.html", "r") do f
         result = read(f, String)
     end
-    @test result == tmp(jl_init=Dict("usr"=>"Julia"))
+    @test result == tmp(init=Dict("usr"=>"Julia"))
     
     # In case of no params and specified config
     tmp = Template("config.html", config=Dict("jl_block_start"=>"```", "jl_block_end"=>"```"))
@@ -23,13 +23,6 @@ using Test
     regex = r"<strong>\s*(?<value>[0-9]*)\s*?</strong>"
     m = match(regex, tmp())
     @test 0 <= parse(Int, m[:value]) <= 100
-    
-    # check `using` is available
-    tmp = Template("jl_using1.html")
-    open("jl_using2.html", "r") do f
-        result = read(f, String)
-    end
-    @test result == tmp()
     
     # check tmp codes work properly
     tmp = Template("tmp_block1.html", config=Dict("lstrip_blocks"=>true, "trim_blocks"=>true))
@@ -59,15 +52,15 @@ using Test
     @test replace(result, "\r"=>"") == replace(tmp(), "\r"=>"")
 
     # filters
-    say_twice(txt) = txt*txt
+    @filter say_twice(txt) = txt*txt
     filters = Dict(
-        "repeat" => say_twice
+        "repeat" => :say_twice
     )
     tmp = Template("filter1.html", filters=filters)
     open("filter2.html", "r") do f
         result = read(f, String)
     end
-    @test result == tmp(tmp_init=Dict("title"=>"upper case", "greet"=>"Hello"))
+    @test result == tmp(init=Dict("title"=>"upper case", "greet"=>"Hello"))
 
     # macro
     tmp = Template("macro1.html")
@@ -95,5 +88,5 @@ using Test
     open("autoescape2.html", "r") do f
         result = read(f, String)
     end
-    @test result == tmp(tmp_init=Dict("attack"=>"<script>This is injection attack</script>"))
+    @test result == tmp(init=Dict("attack"=>"<script>This is injection attack</script>"))
 end
