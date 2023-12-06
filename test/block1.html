@@ -1,0 +1,14 @@
+<html>
+    <head>
+        <title>TmpBlock Test</title>
+    </head>
+    <body>
+        {% block body %}
+        Hello, {{ name |> upper }}!
+        Your age is {{ age }}
+        {% if age < 18 %}
+        You are youth.
+        {% end %}
+        {% endblock %}
+    </body>
+</html>

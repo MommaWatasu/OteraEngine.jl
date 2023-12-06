@@ -29,29 +29,57 @@ using Test
     open("tmp_block2.html", "r") do f
         result = read(f, String)
     end
-    @test replace(result, "\r"=>"") == replace(tmp(), "\r"=>"")
+    @test result == tmp()
 
-    # check `include` and `extends` is available
-    tmp = Template("include_extends1.html", config=Dict("lstrip_blocks"=>true, "trim_blocks"=>true))
-    open("include_extends4.html", "r") do f
+    # check include block
+    tmp = Template("include1.html", config=Dict("lstrip_blocks"=>true, "trim_blocks"=>true))
+    open("include3.html", "r") do f
         result = read(f, String)
     end
-    @test replace(result, "\r"=>"") == replace(tmp(), "\r"=>"")
+    @test result == tmp()
+
+    # check extends block
+    tmp = Template("extends1.html", config=Dict("lstrip_blocks"=>true, "trim_blocks"=>true))
+    open("extends3.html", "r") do f
+        result = read(f, String)
+    end
+    @test result == tmp()
+
+    # check super block
+    tmp = Template("super1.html", config=Dict("lstrip_blocks"=>true, "trim_blocks"=>true))
+    open("super3.html", "r") do f
+        result = read(f, String)
+    end
+    @test result == tmp()
+
+    # check TmpBlock
+    tmp = Template("block1.html", config=Dict("lstrip_blocks"=>true, "trim_blocks"=>true))
+    open("block2.html", "r") do f
+        result = read(f, String)
+    end
+    @test result == tmp(init=Dict("name"=>"watasu", "age"=>15))
 
     # check if `dir` option is working
     tmp = Template("wd_test/dir1.html", config=Dict("lstrip_blocks"=>true, "trim_blocks"=>true))
     open("wd_test/dir3.html", "r") do f
         result = read(f, String)
     end
-    @test replace(result, "\r"=>"") == replace(tmp(), "\r"=>"")
+    @test result == tmp()
     
     tmp = Template("wd_test/dir1.html", config = Dict("dir"=>"wd_test", "lstrip_blocks"=>true, "trim_blocks"=>true))
     open("wd_test/dir3.html", "r") do f
         result = read(f, String)
     end
-    @test replace(result, "\r"=>"") == replace(tmp(), "\r"=>"")
+    @test result == tmp()
 
     # filters
+    @filter function test_filter(txt)
+        if txt == "Hello"
+            return "World"
+        else
+            return "Let's say Hello!"
+        end
+    end
     @filter say_twice(txt) = txt*txt
     filters = Dict(
         "repeat" => :say_twice
@@ -65,6 +93,16 @@ using Test
     # macro
     tmp = Template("macro1.html")
     open("macro2.html", "r") do f
+        result = read(f, String)
+    end
+    @test result == tmp()
+
+    # check import block
+    tmp = Template("import1.html")
+    @test result == tmp()
+
+    tmp = Template("from1.html", config=Dict("lstrip_blocks"=>true, "trim_blocks"=>true, "autospace"=>true))
+    open("from3.html", "r") do f
         result = read(f, String)
     end
     @test result == tmp()
@@ -89,4 +127,10 @@ using Test
         result = read(f, String)
     end
     @test result == tmp(init=Dict("attack"=>"<script>This is injection attack</script>"))
+
+    tmp = Template("space_control1.html")
+    open("space_control2.html", "r") do f
+        result = read(f, String)
+    end
+    @test result == tmp()
 end

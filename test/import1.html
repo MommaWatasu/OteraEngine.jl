@@ -1,6 +1,8 @@
+{% import "import2.html" as base %}
+
 <html>
     <head><title>MyPage</title></head>
     <body>
-        <input type="text" name="test" value="" size="20">
+        {{ base.input("test") }}
     </body>
 </html>
