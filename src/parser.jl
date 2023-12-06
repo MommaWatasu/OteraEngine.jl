@@ -338,14 +338,18 @@ function parse_template(txt::String, filters::Dict{String, Symbol}, config::Pars
 
             # julia statement
             else
-                if !(operator in ["for", "if", "let"])
+                if !(operator in ["for", "if", "elseif", "else", "let"])
                     throw(ParserError("This block is invalid: $(m[:left_token])$(m[:code])$(m[:right_token])"))
                 end
                 if in_block
-                    in_block_depth += 1
+                    if operator in ["for", "if", "let"]
+                        in_block_depth += 1
+                    end
                     push!(code_block[end], TmpStatement(code))
                 else
-                    depth += 1
+                    if operator in ["for", "if", "let"]
+                        depth += 1
+                    end
                     push!(code_block, TmpStatement(code))
                 end
             end

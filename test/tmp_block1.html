@@ -3,14 +3,20 @@
     <body>
         {% set name = "watasu" %}
         {% if name=="watasu" %}
-        your name is {{ name }}, right?
+        Hi {{name}}
+        {% end %}
         {% raw %}
         This is the test for raw block
         {% you can write block inside of raw %}
         {% endraw %}
-        {% end %}
         {% for i in 1 : 10 %}
-        Hello {{i}}
+        {% if i < 4 %}
+        {{i}} is smaller than 4
+        {% elseif i < 8 %}
+        {{i}} is bigger than 3 and smaller than 8
+        {% else %}
+        {{i}} is bigger than 7
+        {% end %}
         {% end %}
         {% let age = 15 %}
         and your age is {{ age }}.
