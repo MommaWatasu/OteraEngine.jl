@@ -17,6 +17,7 @@ function parse_meta(txt::String, filters::Dict{String, Symbol}, config::ParserCo
     # variables for lstrip and trim
     lstrip_block = ' '
     trim_block = ' '
+    prev_trim = false
     # processed text
     out_txt = ""
     # parent template
@@ -39,7 +40,7 @@ function parse_meta(txt::String, filters::Dict{String, Symbol}, config::ParserCo
             tokens = split(code)
             operator = tokens[1]
             
-            if !(operator in ["extends", "include", "import", "macro", "endmacro"])
+            if !(operator in ["extends", "include", "from", "import", "macro", "endmacro"])
                 continue
             end
 
@@ -54,7 +55,7 @@ function parse_meta(txt::String, filters::Dict{String, Symbol}, config::ParserCo
             end
 
             # space control
-            new_txt, idx = process_space(txt, m, idx, lstrip_block, trim_block, config)
+            new_txt, idx, prev_trim = process_space(txt, m, idx, lstrip_block, trim_block, prev_trim, config)
 
             # check if the template has a parent
             if operator == "extends"
@@ -91,9 +92,6 @@ function parse_meta(txt::String, filters::Dict{String, Symbol}, config::ParserCo
                 external_macros = Dict()
                 open(config.dir*"/"*file_name[2:end-1], "r") do f
                     external_macros = parse_meta(read(f, String), filters, config)[3]
-                    for em in external_macros
-                        macros[alias*"."*p[1]] = em[2]
-                    end
                 end
                 for macro_name in split(import_st[:body], ",")
                     def_element = split(macro_name)
@@ -107,7 +105,7 @@ function parse_meta(txt::String, filters::Dict{String, Symbol}, config::ParserCo
                         if haskey(external_macros, def_element[1])
                             macros[def_element[3]] = external_macros[def_element[1]]
                         else
-                            @warn "failed to impoer external macro named $(def_element[1])"
+                            @warn "failed to import external macro named $(def_element[1])"
                         end
                     else
                         throw(ParserError("incorrect `import` block: your import block is broken. please look at the docs for detail."))
@@ -124,7 +122,7 @@ function parse_meta(txt::String, filters::Dict{String, Symbol}, config::ParserCo
                     open(config.dir*"/"*file_name[2:end-1], "r") do f
                         external_macros = parse_meta(read(f, String), filters, config)[3]
                         for em in external_macros
-                            macros[alias*"."*p[1]] = em[2]
+                            macros[alias*"."*em[1]] = em[2]
                         end
                     end
                 else
@@ -169,16 +167,20 @@ function get_block_config(code::String)
     return code, lstrip_block, trim_block
 end
 
-function process_space(txt::String, m::RegexMatch, idx::Int, lstrip_block::Char, trim_block::Char, config::ParserConfig)
+function process_space(txt::String, m::RegexMatch, idx::Int, lstrip_block::Char, trim_block::Char, prev_trim::Bool, config::ParserConfig)
     new_txt = ""
     if lstrip_block == '+'
         new_txt = txt[idx:m.offset-1]*m[:left_space1]*m[:left_nl]*m[:left_space2]
     elseif lstrip_block == '-'
         new_txt = txt[idx:m.offset-1]
+        new_txt = string(rstrip(new_txt))
     elseif config.lstrip_blocks
         new_txt = txt[idx:m.offset-1]*m[:left_space1]*m[:left_nl]
     else
         new_txt = txt[idx:m.offset-1]*m[:left_space1]*m[:left_nl]*m[:left_space2]
+    end
+    if prev_trim
+        new_txt = string(lstrip(new_txt))
     end
     if trim_block == '+'
         idx = m.offset + length(m.match) - length(m[:right_space]) - length(m[:right_nl])
@@ -189,7 +191,7 @@ function process_space(txt::String, m::RegexMatch, idx::Int, lstrip_block::Char,
     else
         idx = m.offset + length(m.match) - length(m[:right_space]) - length(m[:right_nl])
     end
-    return new_txt, idx
+    return new_txt, idx, (trim_block=='-') ? true : false
 end
 
 ## template parser
@@ -206,6 +208,7 @@ function parse_template(txt::String, filters::Dict{String, Symbol}, config::Pars
     # variables for lstrip and trim
     lstrip_block = ' ' 
     trim_block = ' '
+    prev_trim = false
     # variables for blocks
     blocks = Vector{TmpBlock}()
     in_block = false
@@ -213,6 +216,7 @@ function parse_template(txt::String, filters::Dict{String, Symbol}, config::Pars
     raw = false
     # code block depth
     depth = 0
+    in_block_depth = 0
     # the number of blocks
     block_count = 1
     jl_block_count = 1
@@ -243,7 +247,7 @@ function parse_template(txt::String, filters::Dict{String, Symbol}, config::Pars
                 if operator == "endraw"
                     raw = false
                     # space control
-                    new_txt, idx = process_space(txt, m, idx, lstrip_block, trim_block, config)
+                    new_txt, idx, prev_trim = process_space(txt, m, idx, lstrip_block, trim_block, prev_trim, config)
                     # check depth
                     if in_block
                         push!(code_block[end], new_txt)
@@ -261,7 +265,7 @@ function parse_template(txt::String, filters::Dict{String, Symbol}, config::Pars
             end
 
             # space control
-            new_txt, idx = process_space(txt, m, idx, lstrip_block, trim_block, config)
+            new_txt, idx, prev_trim = process_space(txt, m, idx, lstrip_block, trim_block, prev_trim, config)
             # check depth
             if in_block
                 push!(code_block[end], new_txt)
@@ -276,6 +280,9 @@ function parse_template(txt::String, filters::Dict{String, Symbol}, config::Pars
             if operator == "endblock"
                 if !in_block
                     throw(ParserError("invalid end of block: `endblock`` statement without `block` statement"))
+                end
+                if in_block_depth != 0
+                    throw(ParserError("invalid end of block: this block has the statement which is not closed"))
                 end
                 in_block = false
                 push!(blocks, code_block[end])
@@ -313,10 +320,11 @@ function parse_template(txt::String, filters::Dict{String, Symbol}, config::Pars
 
             # end for julia statement
             elseif operator == "end"
-                if depth == 0
+                if depth == 0 && in_block_depth == 0
                     throw(ParserError("end is found at block depth 0"))
                 end
                 if in_block
+                    in_block_depth -= 1
                     push!(code_block[end], TmpStatement("end"))
                 else
                     depth -= 1
@@ -334,6 +342,7 @@ function parse_template(txt::String, filters::Dict{String, Symbol}, config::Pars
                     throw(ParserError("This block is invalid: $(m[:left_token])$(m[:code])$(m[:right_token])"))
                 end
                 if in_block
+                    in_block_depth += 1
                     push!(code_block[end], TmpStatement(code))
                 else
                     depth += 1
@@ -344,7 +353,7 @@ function parse_template(txt::String, filters::Dict{String, Symbol}, config::Pars
         # jl block
         elseif m[:left_token] == config.jl_block[1]
             code, lstrip_block, trim_block = get_block_config(string(m[:code]))
-            new_txt, idx = process_space(txt, m, idx, lstrip_block, trim_block, config)
+            new_txt, idx, prev_trim = process_space(txt, m, idx, lstrip_block, trim_block, prev_trim, config)
             # check depth
             if in_block
                 push!(code_block[end], new_txt)
@@ -362,14 +371,14 @@ function parse_template(txt::String, filters::Dict{String, Symbol}, config::Pars
         # expression block
         elseif m[:left_token] == config.expression_block[1]
             code = string(strip(m[:code]))
-            new_txt, idx = process_space(txt, m, idx, '+', '+', config)
+            new_txt, idx, prev_trim = process_space(txt, m, idx, '+', '+', prev_trim, config)
 
             exp = nothing
             func = match(r"(?<name>>*?)\(.*?\)", code)
             if func === nothing
                 exp = VariableBlock(code)
             else
-                exp = SuperBlock(len(split(code, ".")))
+                exp = SuperBlock(length(split(code, ".")))
             end
             # check depth
             if in_block

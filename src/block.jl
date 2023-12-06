@@ -2,7 +2,7 @@ struct JLCodeBlock
     code::String
 end
 
-struct SuperBlock
+mutable struct SuperBlock
     count::Int
 end
 
@@ -16,10 +16,10 @@ end
 
 struct TmpBlock
     name::String
-    contents::Vector{Union{String, VariableBlock, TmpStatement}}
+    contents::Vector{Union{String, VariableBlock, TmpStatement, SuperBlock}}
 end
 
-function Base.push!(a::TmpBlock, v::Union{String, TmpStatement})
+function Base.push!(a::TmpBlock, v::Union{String, VariableBlock, TmpStatement, SuperBlock})
     push!(a.contents, v)
 end
 
@@ -53,7 +53,7 @@ function (TB::TmpBlock)(filters::Dict{String, Symbol}, autoescape::Bool)
 end
 
 struct TmpCodeBlock
-    contents::Vector{Union{String, VariableBlock, TmpStatement, TmpBlock, SuperBlock}}
+    contents::Vector{Union{String, VariableBlock, TmpStatement, TmpBlock}}
 end
 
 function (TCB::TmpCodeBlock)(filters::Dict{String, Symbol}, autoescape::Bool)
@@ -140,13 +140,6 @@ function apply_inheritance(elements::CodeBlockVector, blocks::Vector{TmpBlock})
                 else
                     elements[i].contents[j] = blocks[idx]
                 end
-            end
-        elseif typeof(elements[i]) == TmpBlock
-            idx = findfirst(x->x.name==elements[i], blocks)
-            if idx === nothing
-                elements[i] = ""
-            else
-                elements[i] = blocks[idx]
             end
         end
     end

@@ -1,4 +1,4 @@
-filters = Vector{Expr}(undef, 0)
+filters = Expr[:(e=htmlesc), :(escape=htmlesc), :(upper=uppercase), :(lower=lowercase)]
 
 macro filter(func::Expr)
     name = :none
