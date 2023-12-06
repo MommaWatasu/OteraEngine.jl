@@ -8,7 +8,7 @@ function regex_escape(txt)
     replace(txt, r"(?<escape>\(|\)|\[|\]|\{|\}|\.|\?|\+|\*|\||\\)" => s"\\\g<escape>")
 end
 
-function parse_meta(txt::String, filters::Dict{String, Function}, config::ParserConfig)
+function parse_meta(txt::String, filters::Dict{String, Symbol}, config::ParserConfig)
     # dict to check tokens
     block_tokens = Dict(
         config.control_block[1] => config.control_block[2],
@@ -193,7 +193,7 @@ function process_space(txt::String, m::RegexMatch, idx::Int, lstrip_block::Char,
 end
 
 ## template parser
-function parse_template(txt::String, filters::Dict{String, Function}, config::ParserConfig)
+function parse_template(txt::String, filters::Dict{String, Symbol}, config::ParserConfig)
     # process meta information
     super, txt, _ = parse_meta(txt, filters, config)
 

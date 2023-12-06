@@ -23,7 +23,7 @@ function Base.push!(a::TmpBlock, v::Union{String, TmpStatement})
     push!(a.contents, v)
 end
 
-function (TB::TmpBlock)(filters::Dict{String, Function}, autoescape::Bool)
+function (TB::TmpBlock)(filters::Dict{String, Symbol}, autoescape::Bool)
     code = ""
     for content in TB.contents
         t = typeof(content)
@@ -34,9 +34,9 @@ function (TB::TmpBlock)(filters::Dict{String, Function}, autoescape::Bool)
                 exp = map(strip, split(content.exp, "|>"))
                 f = filters[exp[2]]
                 if autoescape && f != htmlesc
-                    code *= "txt *= htmlesc($(string(Symbol(f)))(string($(content.exp))));"
+                    code *= "txt *= htmlesc($(string(f))(string($(content.exp))));"
                 else
-                    code *= "txt *= $(string(Symbol(f)))(string($(content.exp)));"
+                    code *= "txt *= $(string(f))(string($(content.exp)));"
                 end
             else
                 if autoescape
@@ -56,7 +56,7 @@ struct TmpCodeBlock
     contents::Vector{Union{String, VariableBlock, TmpStatement, TmpBlock, SuperBlock}}
 end
 
-function (TCB::TmpCodeBlock)(filters::Dict{String, Function}, autoescape::Bool)
+function (TCB::TmpCodeBlock)(filters::Dict{String, Symbol}, autoescape::Bool)
     code = ""
     for content in TCB.contents
         t = typeof(content)
@@ -69,9 +69,9 @@ function (TCB::TmpCodeBlock)(filters::Dict{String, Function}, autoescape::Bool)
                 exp = map(strip, split(content.exp, "|>"))
                 f = filters[exp[2]]
                 if autoescape && f != htmlesc
-                    code *= "txt *= htmlesc($(string(Symbol(f)))(string($(content.exp))));"
+                    code *= "txt *= htmlesc($(string(f))(string($(content.exp))));"
                 else
-                    code *= "txt *= $(string(Symbol(f)))(string($(content.exp)));"
+                    code *= "txt *= $(string(f))(string($(content.exp)));"
                 end
             else
                 if autoescape

@@ -25,14 +25,14 @@ struct Template
     super::Union{Nothing, Template}
     elements::CodeBlockVector
     blocks::Vector{TmpBlock}
-    filters::Dict{String, Function}
+    filters::Dict{String, Symbol}
     config::ParserConfig
 end
 
 function Template(
         txt::String;
         path::Bool=true,
-        filters::Dict{String, <:Function} = Dict{String, Function}(),
+        filters::Dict{String, Symbol} = Dict{String, Symbol}(),
         config_path::String="",
         config::Dict{String, K} = Dict{String, Union{String, Bool}}()
     ) where {K}
@@ -54,17 +54,17 @@ function Template(
     end
 
     # build config
-    filters = build_filters(filters)
+    filters = define_filters(filters)
     config = build_config(dir, config_path, config)
     return Template(parse_template(txt, filters, config)..., filters, config)
 end
 
-function build_filters(filters::Dict{String, <:Function})
-    filters_dict = Dict{String, Function}(
-        "e" => htmlesc,
-        "escape" => htmlesc,
-        "upper" => uppercase,
-        "lower" => lowercase,
+function define_filters(filters::Dict{String, Symbol})
+    filters_dict = Dict{String, Symbol}(
+        "e" => :htmlesc,
+        "escape" => :htmlesc,
+        "upper" => :uppercase,
+        "lower" => :lowercase,
     )
     for key in keys(filters)
         filters_dict[key] = filters[key]
@@ -111,6 +111,9 @@ function (Tmp::Template)(; init::Dict{String, T}=Dict{String, Any}()) where {T}
         return Tmp.super(init, Tmp.blocks)
     end
 
+    for filter in filters
+        eval(filter)
+    end
     eval(build_render(Tmp.elements, init, Tmp.filters, Tmp.config.autoescape))
     try
         return Base.invokelatest(template_render, values(init)...)
@@ -126,6 +129,9 @@ function (Tmp::Template)(init::Dict{String, T}, blocks::Vector{TmpBlock}) where 
     end
     elements = apply_inheritance(Tmp.elements, blocks)
 
+    for filter in filters
+        eval(filter)
+    end
     eval(build_render(elements, init, Tmp.filters, Tmp.config.autoescape))
     try
         return Base.invokelatest(template_render, values(init)...)
@@ -134,7 +140,7 @@ function (Tmp::Template)(init::Dict{String, T}, blocks::Vector{TmpBlock}) where 
     end
 end
 
-function build_render(elements::CodeBlockVector, init::Dict{String, T}, filters::Dict{String, Function}, autoescape::Bool) where {T}
+function build_render(elements::CodeBlockVector, init::Dict{String, T}, filters::Dict{String, Symbol}, autoescape::Bool) where {T}
     body = quote
         txt = ""
     end
@@ -153,9 +159,9 @@ function build_render(elements::CodeBlockVector, init::Dict{String, T}, filters:
                 exp = map(strip, split(e.exp, "|>"))
                 f = filters[exp[2]]
                 if autoescape && f != htmlesc
-                    push!(body.args, :(txt *= htmlesc($(Symbol(f))(string($(Symbol(exp[1])))))))
+                    push!(body.args, :(txt *= htmlesc($f(string($(Symbol(exp[1])))))))
                 else
-                    push!(body.args, :(txt *= Symbol(f)(string($(Symbol(exp[1]))))))
+                    push!(body.args, :(txt *= $f(string($(Symbol(exp[1]))))))
                 end
             else
                 if autoescape
