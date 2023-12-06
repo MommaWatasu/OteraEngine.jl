@@ -145,16 +145,15 @@ function build_render(elements::CodeBlockVector, init::Dict{String, T}, filters:
         txt = ""
     end
     for e in elements
-        t = typeof(e)
-        if t == String
+        if isa(e, String)
             push!(body.args, :(txt *= $e))
-        elseif t == JLCodeBlock
+        elseif isa(e, JLCodeBlock)
             push!(body.args, :(txt *= string(begin; $(Meta.parse(e.code));end)))
-        elseif t == TmpCodeBlock
+        elseif isa(e, TmpCodeBlock)
             push!(body.args, e(filters, autoescape))
-        elseif t == TmpBlock
+        elseif isa(e, TmpBlock)
             push!(body.args, e(filters, autoescape))
-        elseif t == VariableBlock
+        elseif isa(e, VariableBlock)
             if occursin("|>", e.exp)
                 exp = map(strip, split(e.exp, "|>"))
                 f = filters[exp[2]]
@@ -170,7 +169,7 @@ function build_render(elements::CodeBlockVector, init::Dict{String, T}, filters:
                     push!(body.args, :(txt *= string($(Symbol(e.exp)))))
                 end
             end
-        elseif t == SuperBlock
+        elseif isa(e, SuperBlock)
             throw(TemplateError("invalid super block is found"))
         end
     end

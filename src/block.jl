@@ -27,9 +27,9 @@ function (TB::TmpBlock)(filters::Dict{String, Symbol}, autoescape::Bool)
     code = ""
     for content in TB.contents
         t = typeof(content)
-        if t == TmpStatement
+        if isa(content, TmpStatement)
             code *= "$(content.st);"
-        elseif t == VariableBlock
+        elseif isa(content, VariableBlock)
             if occursin("|>", content.exp)
                 exp = map(strip, split(content.exp, "|>"))
                 f = filters[exp[2]]
@@ -45,7 +45,7 @@ function (TB::TmpBlock)(filters::Dict{String, Symbol}, autoescape::Bool)
                     code *= "txt *= string($(content.exp));"
                 end
             end
-        elseif t == String
+        elseif isa(content, String)
             code *= "txt *= \"$(replace(content, "\""=>"\\\""))\";"
         end
     end
@@ -59,12 +59,11 @@ end
 function (TCB::TmpCodeBlock)(filters::Dict{String, Symbol}, autoescape::Bool)
     code = ""
     for content in TCB.contents
-        t = typeof(content)
-        if t == TmpStatement
+        if isa(content, TmpStatement)
             code *= "$(content.st);"
-        elseif t == TmpBlock
+        elseif isa(content, TmpBlock)
             code *= content(filters, autoescape)
-        elseif t == VariableBlock
+        elseif isa(content, VariableBlock)
             if occursin("|>", content.exp)
                 exp = map(strip, split(content.exp, "|>"))
                 f = filters[exp[2]]
@@ -80,7 +79,7 @@ function (TCB::TmpCodeBlock)(filters::Dict{String, Symbol}, autoescape::Bool)
                     code *= "txt *= string($(content.exp));"
                 end
             end
-        elseif t == String
+        elseif isa(content, String)
             code *= "txt *= \"$(replace(content, "\""=>"\\\""))\";"
         end
     end
@@ -129,7 +128,7 @@ function inherite_blocks(src::Vector{TmpBlock}, dst::Vector{TmpBlock})
     return dst
 end
 
-function apply_inheritance(elements, blocks::Vector{TmpBlock})
+function apply_inheritance(elements::CodeBlockVector, blocks::Vector{TmpBlock})
     for i in eachindex(elements)
         if typeof(elements[i]) == TmpCodeBlock
             idxs = findall(x->typeof(x)==TmpBlock, elements[i].contents)

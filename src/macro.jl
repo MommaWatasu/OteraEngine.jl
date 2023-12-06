@@ -1,6 +1,5 @@
 get_macro_name(macro_def::String) = match(r"(?<name>.*?)\(.*?\)", macro_def)[:name]
 get_macro_args(macro_def::String) = match(r".*?(?<args>\(.*?\))", macro_def)[:args]
-apply_func(f, args...) = f(args...)
 
 function build_macro(macro_def::String, txt::String, filters::Dict{String, Symbol}, config::ParserConfig)
     out_txt = ""
