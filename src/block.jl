@@ -16,14 +16,12 @@ end
 
 struct TmpBlock
     name::String
-    contents::Vector{Union{String, TmpStatement}}
+    contents::Vector{Union{String, VariableBlock, TmpStatement}}
 end
 
 function Base.push!(a::TmpBlock, v::Union{String, TmpStatement})
     push!(a.contents, v)
 end
-
-CodeBlockVector = Vector{Union{String, TmpStatement, TmpBlock, VariableBlock, SuperBlock}}
 
 function (TB::TmpBlock)(filters::Dict{String, Function}, autoescape::Bool)
     code = ""
@@ -51,8 +49,51 @@ function (TB::TmpBlock)(filters::Dict{String, Function}, autoescape::Bool)
             code *= "txt *= \"$(replace(content, "\""=>"\\\""))\";"
         end
     end
-    return Expr(:block, Meta.parse(code).args...)
+    return code
 end
+
+struct TmpCodeBlock
+    contents::Vector{Union{String, VariableBlock, TmpStatement, TmpBlock, SuperBlock}}
+end
+
+function (TCB::TmpCodeBlock)(filters::Dict{String, Function}, autoescape::Bool)
+    code = ""
+    for content in TCB.contents
+        t = typeof(content)
+        if t == TmpStatement
+            code *= "$(content.st);"
+        elseif t == TmpBlock
+            code *= content(filters, autoescape)
+        elseif t == VariableBlock
+            if occursin("|>", content.exp)
+                exp = map(strip, split(content.exp, "|>"))
+                f = filters[exp[2]]
+                if autoescape && f != htmlesc
+                    code *= "txt *= htmlesc($(string(Symbol(f)))(string($(content.exp))));"
+                else
+                    code *= "txt *= $(string(Symbol(f)))(string($(content.exp)));"
+                end
+            else
+                if autoescape
+                    code *= "txt *= htmlesc(string($(content.exp)));"
+                else
+                    code *= "txt *= string($(content.exp));"
+                end
+            end
+        elseif t == String
+            code *= "txt *= \"$(replace(content, "\""=>"\\\""))\";"
+        end
+    end
+    expr = Meta.parse(code)
+    if expr.head == :toplevel
+        return Expr(:block, expr.args...)
+    else
+        return expr
+    end
+end
+
+CodeBlockVector = Vector{Union{String, JLCodeBlock, TmpCodeBlock, TmpBlock, VariableBlock, SuperBlock}}
+SubCodeBlockVector = Vector{Union{String, JLCodeBlock, TmpStatement, TmpBlock, VariableBlock, SuperBlock}}
 
 function get_string(tb::TmpBlock)
     txt = ""
@@ -111,40 +152,4 @@ function apply_inheritance(elements, blocks::Vector{TmpBlock})
         end
     end
     return elements
-end
-
-struct TmpCodeBlock
-    #Union{TmpBlock, RawText, String, TmpStatement}
-    contents::CodeBlockVector
-end
-
-function (TCB::TmpCodeBlock)(filters::Dict{String, Function}, autoescape::Bool)
-    code = ""
-    for content in TCB.contents
-        t = typeof(content)
-        if t == TmpStatement
-            code *= "$(content.st);"
-        elseif t == TmpBlock
-            code *= content(init, filters, autoescape)
-        elseif t == VariableBlock
-            if occursin("|>", content.exp)
-                exp = map(strip, split(content.exp, "|>"))
-                f = filters[exp[2]]
-                if autoescape && f != htmlesc
-                    code *= "txt *= htmlesc($(string(Symbol(f)))(string($(content.exp))));"
-                else
-                    code *= "txt *= $(string(Symbol(f)))(string($(content.exp)));"
-                end
-            else
-                if autoescape
-                    code *= "txt *= htmlesc(string($(content.exp)));"
-                else
-                    code *= "txt *= string($(content.exp));"
-                end
-            end
-        elseif t == String
-            code *= "txt *= \"$(replace(content, "\""=>"\\\""))\";"
-        end
-    end
-    return Expr(:block, Meta.parse(code).args...)
 end

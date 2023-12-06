@@ -23,8 +23,7 @@ julia> tmp(tmp_init = init)
 """
 struct Template
     super::Union{Nothing, Template}
-    elements::Vector{Union{String, JLCodeBlock, TmpCodeBlock, TmpBlock, VariableBlock, SuperBlock}}
-    top_codes::Vector{String}
+    elements::CodeBlockVector
     blocks::Vector{TmpBlock}
     filters::Dict{String, Function}
     config::ParserConfig
@@ -135,14 +134,14 @@ function (Tmp::Template)(init::Dict{String, T}, blocks::Vector{TmpBlock}) where 
     end
 end
 
-function build_render(elements, init::Dict{String, T}, filters::Dict{String, Function}, autoescape::Bool) where {T}
+function build_render(elements::CodeBlockVector, init::Dict{String, T}, filters::Dict{String, Function}, autoescape::Bool) where {T}
     body = quote
         txt = ""
     end
     for e in elements
         t = typeof(e)
         if t == String
-            push!(body.args, :(txt *= $(replace(e, "\""=>"\\\""))))
+            push!(body.args, :(txt *= $e))
         elseif t == JLCodeBlock
             push!(body.args, :(txt *= string(begin; $(Meta.parse(e.code));end)))
         elseif t == TmpCodeBlock

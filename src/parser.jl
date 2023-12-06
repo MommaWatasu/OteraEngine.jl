@@ -220,9 +220,8 @@ function parse_template(txt::String, filters::Dict{String, Function}, config::Pa
     idx = 1
 
     # prepare the arrays to store the code blocks
-    elements = Vector{Union{String, JLCodeBlock, TmpCodeBlock, TmpBlock, VariableBlock, SuperBlock}}(undef, 0)
-    top_codes = Array{String}(undef, 0)
-    code_block = CodeBlockVector(undef, 0)
+    elements = CodeBlockVector(undef, 0)
+    code_block = SubCodeBlockVector(undef, 0)
 
     re = Regex("(?<left_space1>\\s*?)(?<left_nl>\n?)(?<left_space2>\\s*?)(?<left_token>($(regex_escape(config.control_block[1]))|$(regex_escape(config.jl_block[1]))|$(regex_escape(config.expression_block[1]))))(?<code>[\\s\\S]*?)(?<right_token>($(regex_escape(config.control_block[2]))|$(regex_escape(config.jl_block[2]))|$(regex_escape(config.expression_block[2]))))(?<right_nl>\\n?)(?<right_space>\\s*?)")
     for m in eachmatch(re, txt)
@@ -282,7 +281,7 @@ function parse_template(txt::String, filters::Dict{String, Function}, config::Pa
                 push!(blocks, code_block[end])
                 if depth == 0
                     push!(elements, TmpCodeBlock(code_block))
-                    code_block = CodeBlockVector(undef, 0)
+                    code_block = SubCodeBlockVector(undef, 0)
                     block_count += 1
                 end
                 continue
@@ -324,7 +323,7 @@ function parse_template(txt::String, filters::Dict{String, Function}, config::Pa
                     push!(code_block, TmpStatement("end"))
                     if depth == 0
                         push!(elements, TmpCodeBlock(code_block))
-                        code_block = CodeBlockVector(undef, 0)
+                        code_block = SubCodeBlockVector(undef, 0)
                         block_count += 1
                     end
                 end
@@ -357,13 +356,6 @@ function parse_template(txt::String, filters::Dict{String, Function}, config::Pa
                 end
             end
 
-            re = r"(using|import)\s.*[\n, ;]"
-            tops = ""
-            for t in eachmatch(re, code)
-                tops *= t.match
-                code = replace(code, t.match=>"")
-            end
-            push!(top_codes, tops)
             push!(elements, JLCodeBlock(string(strip(code))))
             jl_block_count += 1
         
@@ -398,5 +390,5 @@ function parse_template(txt::String, filters::Dict{String, Function}, config::Pa
         end
     end
     push!(elements, txt[idx:end])
-    return super, elements, top_codes, blocks
+    return super, elements, blocks
 end
