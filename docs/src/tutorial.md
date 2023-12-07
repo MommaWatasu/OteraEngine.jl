@@ -13,6 +13,7 @@ Acutually, this package has only one structure, but these are very powerful beca
 
 ```@docs
 Template
+@filter
 ```
 Learn about syntax and configuration in the sections below.
 
@@ -25,7 +26,7 @@ There are 4 types of blocks:
 - `{# ... #}`: Comment block
 Control block is used for control flow like `if` or `for`, and Expression block is used for embedding variables. Commend block is just ignored and remove from template.
 These block must be familiar with those who have ever used jinja2, but OteraEngine has one more block.
-Julia block makes you possible to write Julia code directly into templates. `using` and `import` statement are also available in it.
+Julia block makes you possible to write Julia code directly into templates.
 
 ## Variables
 As mentioned in previous section, you can embed variables with Expression block. And you can define variables in both templates and julia. Here is an example:
@@ -36,17 +37,12 @@ As mentioned in previous section, you can embed variables with Expression block.
     {% end %}
 </div>
 ```
-!!! danger "known issue about `set`"
-    Now, you can define variables with control blocks except `set` statement. Maybe it will be fixed in future release.
-
 You can define variables from julia code like this:
 ```julia
 tmp = Template(...)
-tmp(tmp_init=Dict("name"=>"Julia"))
+tmp(init=Dict("name"=>"Julia"))
 ```
-tmp_init is also used for control blocks, and its type is `Dict`. The format is `(variable name)=>(value)`.
-!!! warning "variables for tmp block is different from variables in julia block"
-    you can't use variables defined for expression block in julia block. Please see [Julia block](#Julia block) for more detail.
+init is also used for control blocks, and its type is `Dict`. The format is `(variable name)=>(value)`.
 
 ## Filters
 This is very useful function for expression block. You can apply filters for variables like this:
@@ -57,15 +53,35 @@ variable name and filter name are separeted by `|>`. Built-in filters are follow
 - `escape` or `e`: escape variables with `Markdown.htmlesc`
 - `upper`: convert variables into uppercase
 - `lower`: convert variables into lowercase
+
 You can define filters by yourself:
 ```julia
-say_twice(txt) = txt*txt
+@filter say_twice(txt) = txt*txt
 filters = Dict(
     "repeat" => say_twice
 )
 tmp = Template(..., filters=filters)
 ```
 Then you can use `repeat` in you template.
+
+## Julia Code Block
+You can write Julia deirectly in templates with this block. Variables are shared between Julia Code Block and Tmp Code Block, and variables defined in `init` are also available. And arbitary type(for example DataFrame) are available in this block.
+This is the example:
+```
+<div>
+    {<
+        a = 10
+        b = sqrt(2)
+        round(a*B)
+    >}
+</div>
+```
+Output:
+```
+<div>
+    14.0
+</div>
+```
 
 ## Comment
 To comment out part of template, use comment block which set to `{# #}` by default:
@@ -128,6 +144,23 @@ With `trim_blocks` and `lstrip_blocks`:
 ```
 But, sometimes these options aren't perfect(like macro), and it's annoying to set these options all the time. So, you can use `autospace` option which automatically enables these options and remove extra spaces from macro.
 
+And other way to control white spaces is to add `+` and `-` to the both ends of blocks. This works partially even if space control options are enabled.
+`+` means that the block does nothing about space. And `-` means that the block removes all the spaces.
+This is useful when you want to put items in a row with `for` block:
+```
+<div>
+    {% for i in 1 : 10 -%}
+    {{i}}
+    {%- end %}
+</div>
+```
+Output:
+```
+<div>
+    12345678910
+</div>
+```
+
 ## Escaping
 It is important to apply HTML escaping in order to prevent XSS. So, `autoescape` is set to `true` by default.
 If you want to escape manually, you can disable this option, and use `e` or `escape` filter into expression blocks:
@@ -151,8 +184,6 @@ This is test for raw block
 {% you can write anything inside raw block %}
 {% endraw %}
 ```
-!!! warning "Julia block can't be used for raw text"
-    Julia block doesn't preserve inner text. Don't use it for raw text.
 
 ## Template Inheritance
 ### Include
@@ -262,8 +293,12 @@ These blocks are converted into the Julia code directly, and the syntax is compl
 ### If
 `if` block adds the text when condition is true:
 ```
-{% if (condition) %}
-    Hello
+{% if (condition1) %}
+    This is `if` block
+{% elseif (condition2) %}
+    This is `elseif` block
+{% else %}
+    This is `else` block
 {% end %}
 ```
 
@@ -305,6 +340,34 @@ This is the example:
 </html>
 ``` 
 You should note that macro emits extra white space when you don't use any white space control options. So, it is strongly recommended to use `autospace` when you use macros.
+
+## Import Macros
+Sometimes you need the macro defined the different template. In such case, you should use `import` and `from`.
+`import` adds an external template into the namespace with alias like this:
+```
+{% import "import2.html" as base %}
+
+<html>
+    <head><title>MyPage</title></head>
+    <body>
+        {{ base.input("test") }}
+    </body>
+</html>
+```
+This template generate the same output as the previous example.
+
+`from` is more flexible. You can directly add external macros into the namespace, and you can give it a different name or just add it as is.
+```
+{% from "from2.html" import input, title as alias %}
+
+<html>
+    <head><title>MyPage</title></head>
+    <body>
+        {{ alias("Test") }}
+        {{ input("test") }}
+    </body>
+</html>
+```
 
 ## Configurations
 there are six configurations:
