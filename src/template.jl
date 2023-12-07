@@ -148,7 +148,13 @@ function build_render(elements::CodeBlockVector, init::Dict{String, T}, filters:
         if isa(e, String)
             push!(body.args, :(txt *= $e))
         elseif isa(e, JLCodeBlock)
-            push!(body.args, :(txt *= string(begin; $(Meta.parse(e.code));end)))
+            code = Meta.parse(replace(rstrip(e.code), "\n"=>";"))
+            if isa(code, Expr)
+                if code.head == :toplevel
+                    code = Expr(:block, code.args...)
+                end
+            end
+            push!(body.args, :(txt *= string(eval($code))))
         elseif isa(e, TmpCodeBlock)
             push!(body.args, e(filters, autoescape))
         elseif isa(e, TmpBlock)
