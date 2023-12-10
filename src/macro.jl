@@ -50,6 +50,8 @@ function apply_macros(txt::String, macros::Dict{String, String}, config::ParserC
             catch e
                 throw(ParserError("invalid macro: failed to call macro in $(m.match) because of the following error\n$e"))
             end
+        else
+            throw(ParserError("invalid macro call: cannot call $(m.match) because $(m[:name]) is not defined"))
         end
         m = match(re, txt)
     end
