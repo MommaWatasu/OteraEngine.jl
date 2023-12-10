@@ -28,118 +28,126 @@ function parse_meta(txt::String, filters::Dict{String, Symbol}, config::ParserCo
     macros = Dict{String, String}()
     macro_def = ""
 
-    re = Regex("(?<left_space1>\\s*?)(?<left_nl>\n?)(?<left_space2>\\s*?)(?<left_token>($(regex_escape(config.control_block[1]))|$(regex_escape(config.comment_block[1]))))(?<code>.*?)(?<right_token>($(regex_escape(config.control_block[2]))|$(regex_escape(config.comment_block[2]))))(?<right_nl>\\n?)(?<right_space>\\s*?)")
+    # remove comment block
+    re = Regex("(?<left_space1>\\s*?)(?<left_nl>\n?)(?<left_space2>\\s*?)(?<left_token>$(regex_escape(config.comment_block[1])))(?<code>.*?)(?<right_token>$(regex_escape(config.comment_block[2])))(?<right_nl>\\n?)(?<right_space>\\s*?)")
     for m in eachmatch(re, txt)
         if block_tokens[m[:left_token]] != m[:right_token]
             throw(ParserError("token mismatch: beginning and end of the block doesn't match"))
         end
-        if m[:left_token] == config.control_block[1]
-            # get space control config and process code
-            code, lstrip_block, trim_block = get_block_config(string(m[:code]))
-            code = strip(code)
-            tokens = split(code)
-            operator = tokens[1]
+        out_txt *= txt[idx:m.offset-1]
+        idx = m.offset + length(m.match) - length(m[:right_nl])
+    end
+    out_txt *= txt[idx:end]
+    
+    idx = 1
+    txt = out_txt
+    out_txt = ""
+
+    re = Regex("(?<left_space1>\\s*?)(?<left_nl>\n?)(?<left_space2>\\s*?)(?<left_token>$(regex_escape(config.control_block[1])))(?<code>.*?)(?<right_token>$(regex_escape(config.control_block[2])))(?<right_nl>\\n?)(?<right_space>\\s*?)")
+    for m in eachmatch(re, txt)
+        if block_tokens[m[:left_token]] != m[:right_token]
+            throw(ParserError("token mismatch: beginning and end of the block doesn't match"))
+        end
+        # get space control config and process code
+        code, lstrip_block, trim_block = get_block_config(string(m[:code]))
+        code = strip(code)
+        tokens = split(code)
+        operator = tokens[1]
+        
+        if !(operator in ["extends", "include", "from", "import", "macro", "endmacro"])
+            continue
+        end
+
+        if config.autospace
+            if operator == "macro"
+                lstrip_block = ' '
+                trim_block = '-'
+            elseif operator == "endmacro"
+                lstrip_block = '-'
+                trim_block = ' '
+            end
+        end
+
+        # space control
+        new_txt, idx, prev_trim = process_space(txt, m, idx, lstrip_block, trim_block, prev_trim, config)
+
+        # check if the template has a parent
+        if operator == "extends"
+            # add text before the block
+            out_txt *= new_txt
             
-            if !(operator in ["extends", "include", "from", "import", "macro", "endmacro"])
-                continue
+            if m.offset != 1
+                throw(ParserError("invalid extends block: `extends` block have to be top of the template"))
             end
-
-            if config.autospace
-                if operator == "macro"
-                    lstrip_block = ' '
-                    trim_block = '-'
-                elseif operator == "endmacro"
-                    lstrip_block = '-'
-                    trim_block = ' '
-                end
+            file_name = strip(code[8:end])
+            if file_name[1] == file_name[end] == '\"'
+                super = Template(config.dir*"/"*file_name[2:end-1], config = config2dict(config))
+            else
+                throw(ParserError("failed to read $file_name: file name have to be enclosed in double quotation marks"))
             end
-
-            # space control
-            new_txt, idx, prev_trim = process_space(txt, m, idx, lstrip_block, trim_block, prev_trim, config)
-
-            # check if the template has a parent
-            if operator == "extends"
-                # add text before the block
-                out_txt *= new_txt
-                
-                if m.offset != 1
-                    throw(ParserError("invalid extends block: `extends` block have to be top of the template"))
+        # include external template
+        elseif operator == "include"
+            # add text before the block
+            out_txt *= new_txt
+            file_name = strip(code[8:end])
+            if file_name[1] == file_name[end] == '\"'
+                open(config.dir*"/"*file_name[2:end-1], "r") do f
+                    out_txt *= read(f, String)
                 end
-                file_name = strip(code[8:end])
-                if file_name[1] == file_name[end] == '\"'
-                    super = Template(config.dir*"/"*file_name[2:end-1], config = config2dict(config))
-                else
-                    throw(ParserError("failed to read $file_name: file name have to be enclosed in double quotation marks"))
-                end
-            # include external template
-            elseif operator == "include"
-                # add text before the block
-                out_txt *= new_txt
-                file_name = strip(code[8:end])
-                if file_name[1] == file_name[end] == '\"'
-                    open(config.dir*"/"*file_name[2:end-1], "r") do f
-                        out_txt *= read(f, String)
+            else
+                throw(ParserError("failed to include $file_name: file name have to be enclosed in double quotation marks"))
+            end
+        elseif operator == "from"
+            import_st = match(r"from\s*(?<file_name>.*?)\s*import(?<body>.*)", code)
+            if isnothing(import_st)
+                throw(ParserError("incorrect `import` block: your import block is broken. please look at the docs for detail."))
+            end
+            file_name = import_st[:file_name]
+            external_macros = Dict()
+            open(config.dir*"/"*file_name[2:end-1], "r") do f
+                external_macros = parse_meta(read(f, String), filters, config)[3]
+            end
+            for macro_name in split(import_st[:body], ",")
+                def_element = split(macro_name)
+                if length(def_element) == 1
+                    if haskey(external_macros, def_element[1])
+                        macros[def_element[1]] = external_macros[def_element[1]]
+                    else
+                        @warn "failed to impoer external macro named $(def_element[1])"
+                    end
+                elseif length(def_element) == 3
+                    if haskey(external_macros, def_element[1])
+                        macros[def_element[3]] = external_macros[def_element[1]]
+                    else
+                        @warn "failed to import external macro named $(def_element[1])"
                     end
                 else
-                    throw(ParserError("failed to include $file_name: file name have to be enclosed in double quotation marks"))
-                end
-            elseif operator == "from"
-                import_st = match(r"from\s*(?<file_name>.*?)\s*import(?<body>.*)", code)
-                if isnothing(import_st)
                     throw(ParserError("incorrect `import` block: your import block is broken. please look at the docs for detail."))
                 end
-                file_name = import_st[:file_name]
-                external_macros = Dict()
+            end
+        elseif operator == "import"
+            out_txt *= new_txt
+            file_name = tokens[2]
+            if tokens[3] != "as"
+                throw(ParserError("incorrect `import` block: your import block is broken. please look at the docs for detail."))
+            end
+            alias = tokens[4]
+            if file_name[1] == file_name[end] == '\"'
                 open(config.dir*"/"*file_name[2:end-1], "r") do f
                     external_macros = parse_meta(read(f, String), filters, config)[3]
-                end
-                for macro_name in split(import_st[:body], ",")
-                    def_element = split(macro_name)
-                    if length(def_element) == 1
-                        if haskey(external_macros, def_element[1])
-                            macros[def_element[1]] = external_macros[def_element[1]]
-                        else
-                            @warn "failed to impoer external macro named $(def_element[1])"
-                        end
-                    elseif length(def_element) == 3
-                        if haskey(external_macros, def_element[1])
-                            macros[def_element[3]] = external_macros[def_element[1]]
-                        else
-                            @warn "failed to import external macro named $(def_element[1])"
-                        end
-                    else
-                        throw(ParserError("incorrect `import` block: your import block is broken. please look at the docs for detail."))
+                    for em in external_macros
+                        macros[alias*"."*em[1]] = em[2]
                     end
                 end
-            elseif operator == "import"
-                out_txt *= new_txt
-                file_name = tokens[2]
-                if tokens[3] != "as"
-                    throw(ParserError("incorrect `import` block: your import block is broken. please look at the docs for detail."))
-                end
-                alias = tokens[4]
-                if file_name[1] == file_name[end] == '\"'
-                    open(config.dir*"/"*file_name[2:end-1], "r") do f
-                        external_macros = parse_meta(read(f, String), filters, config)[3]
-                        for em in external_macros
-                            macros[alias*"."*em[1]] = em[2]
-                        end
-                    end
-                else
-                    throw(ParserError("failed to import macro from $file_name: file name have to be enclosed in double quotation marks"))
-                end
-            elseif operator == "macro"
-                # add text before the block
-                out_txt *= new_txt
-                macro_def = string(lstrip(code[6:end]))
-            elseif operator == "endmacro"
-                macros[get_macro_name(macro_def)] = build_macro(macro_def, new_txt, filters, config)
+            else
+                throw(ParserError("failed to import macro from $file_name: file name have to be enclosed in double quotation marks"))
             end
-
-        # remove comment block
-        else
-            out_txt *= txt[idx:m.offset-1]
-            idx = m.offset + length(m.match) - length(m[:right_nl])
+        elseif operator == "macro"
+            # add text before the block
+            out_txt *= new_txt
+            macro_def = string(lstrip(code[6:end]))
+        elseif operator == "endmacro"
+            macros[get_macro_name(macro_def)] = build_macro(macro_def, new_txt, filters, config)
         end
     end
     out_txt *= txt[idx:end]
