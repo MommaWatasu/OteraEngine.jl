@@ -413,3 +413,88 @@ function parse_template(txt::String, filters::Dict{String, Symbol}, config::Pars
     push!(elements, txt[idx:end])
     return super, elements, blocks
 end
+
+abstract type Token end
+struct ControlStart <: Token end
+struct ControlEnd <: Token end
+struct ExpressionStart <: Token end
+struct ExpressionEnd <: Token end
+struct JLStart <: Token end
+struct JLEnd <: Token end
+struct CommentStart <: Token end
+struct CommentEnd <: Token end
+struct Plus <: Token end
+struct Minus <: Token end
+
+function tokenizer(txt::String, config::ParserConfig)
+    tokens = Vector{Union{String, Token}}()
+    block_start = false
+    idx = 1
+    i = 1
+    while i <= length(txt)
+        if block_start
+            if txt[i] == '+'
+                push!(tokens, Plus)
+                i += 1
+                idx = i
+                continue
+            elseif txt[i] == '-'
+                push!(tokens, Minus)
+                i += 1
+                idx = i
+                continue
+            end
+            block_start = false
+        end
+        if txt[i:min(i+length(config.control_block[1])-1, end)] == config.control_block[1]
+            push!(tokens, txt[idx:i-1])
+            push!(tokens, ControlStart())
+            i += length(config.control_block[1])
+            idx = i
+            block_start = true
+        elseif txt[i:min(i+length(config.control_block[2])-1, end)] == config.control_block[2]
+            push!(tokens, txt[idx:i-1])
+            push!(tokens, ControlEnd())
+            i += length(config.control_block[2])
+            idx = i
+        elseif txt[i:min(i+length(config.expression_block[1])-1, end)] == config.expression_block[1]
+            push!(tokens, txt[idx:i-1])
+            push!(tokens, ExpressionStart())
+            i += length(config.expression_block[1])
+            idx = i
+        elseif txt[i:min(i+length(config.expression_block[2])-1, end)] == config.expression_block[2]
+            push!(tokens, txt[idx:i-1])
+            push!(tokens, ExpressionEnd())
+            i += length(config.expression_block[2])
+            idx = i
+        elseif txt[i:min(i+length(config.jl_block[1])-1, end)] == config.jl_block[1]
+            push!(tokens, txt[idx:i-1])
+            push!(tokens, JLStart())
+            i += length(config.jl_block[1])
+            idx = i
+            block_start = true
+        elseif txt[i:min(i+length(config.jl_block[2])-1, end)] == config.jl_block[2]
+            push!(tokens, txt[idx:i-1])
+            push!(tokens, JLEnd())
+            i += length(config.jl_block[2])
+            idx = i
+        elseif txt[i:min(i+length(config.comment_block[1])-1, end)] == config.comment_block[1]
+            push!(tokens, txt[idx:i-1])
+            push!(tokens, CommentStart())
+            i += length(config.comment_block[1])
+            idx = i
+        elseif txt[i:min(i+length(config.comment_block[2])-1, end)] == config.comment_block[2]
+            push!(tokens, txt[idx:i-1])
+            push!(tokens, CommentEnd())
+            i += length(config.comment_block[2])
+            idx = i
+        else
+            i += 1
+        end
+    end
+    push!(tokens, txt[idx:end])
+    return tokens
+end
+
+function build_tree()
+end
