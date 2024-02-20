@@ -136,7 +136,7 @@ function (Tmp::Template)(init::Dict{String, T}, blocks::Vector{TmpBlock}) where 
     try
         return Base.invokelatest(template_render, values(init)...)
     catch e
-        thtow(TemplateError("failed to render: following error occurred during rendering:\n$e"))
+        throw(TemplateError("failed to render: following error occurred during rendering:\n$e"))
     end
 end
 
