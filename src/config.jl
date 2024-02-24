@@ -1,3 +1,9 @@
+struct ConfigError <: Exception
+    msg::String
+end
+
+Base.showerror(io::IO, e::ConfigError) = print(io, "ConfigError: "*e.msg)
+
 struct ParserConfig
     control_block::Tuple{String, String}
     expression_block::Tuple{String, String}
@@ -19,6 +25,14 @@ struct ParserConfig
                 config["trim_blocks"] = true
             end
         end
+            if (
+                config["control_block_start"] == config["control_block_end"]
+                || config["expression_block_start"] == config["expression_block_end"]
+                || config["jl_block_start"] == config["jl_block_end"]
+                || config["comment_block_start"] == config["comment_block_end"]
+            )
+                throw(ConfigError("invalid configuration: start token and end token must be different"))
+            end
         return new(
             (config["control_block_start"], config["control_block_end"]),
             (config["expression_block_start"], config["expression_block_end"]),

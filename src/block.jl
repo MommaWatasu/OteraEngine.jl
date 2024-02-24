@@ -16,10 +16,10 @@ end
 
 struct TmpBlock
     name::String
-    contents::Vector{Union{String, VariableBlock, TmpStatement, SuperBlock}}
+    contents::Vector{Union{AbstractString, VariableBlock, JLCodeBlock, TmpStatement, SuperBlock}}
 end
 
-function Base.push!(a::TmpBlock, v::Union{String, VariableBlock, TmpStatement, SuperBlock})
+function Base.push!(a::TmpBlock, v::Union{AbstractString, VariableBlock, JLCodeBlock, TmpStatement, SuperBlock})
     push!(a.contents, v)
 end
 
@@ -45,7 +45,7 @@ function (TB::TmpBlock)(filters::Dict{String, Symbol}, autoescape::Bool)
                     code *= "txt *= string($(content.exp));"
                 end
             end
-        elseif isa(content, String)
+        elseif typeof(content) <: AbstractString
             code *= "txt *= \"$(replace(content, "\""=>"\\\""))\";"
         end
     end
@@ -53,7 +53,7 @@ function (TB::TmpBlock)(filters::Dict{String, Symbol}, autoescape::Bool)
 end
 
 struct TmpCodeBlock
-    contents::Vector{Union{String, VariableBlock, TmpStatement, TmpBlock}}
+    contents::Vector{Union{AbstractString, VariableBlock, JLCodeBlock, TmpStatement, TmpBlock}}
 end
 
 function (TCB::TmpCodeBlock)(filters::Dict{String, Symbol}, autoescape::Bool)
@@ -61,6 +61,9 @@ function (TCB::TmpCodeBlock)(filters::Dict{String, Symbol}, autoescape::Bool)
     for content in TCB.contents
         if isa(content, TmpStatement)
             code *= "$(content.st);"
+        elseif isa(content, JLCodeBlock)
+            jl_code = replace(content.code, "\n"=>";")
+            code *= "txt *= begin;$jl_code;end"
         elseif isa(content, TmpBlock)
             code *= content(filters, autoescape)
         elseif isa(content, VariableBlock)
@@ -79,8 +82,8 @@ function (TCB::TmpCodeBlock)(filters::Dict{String, Symbol}, autoescape::Bool)
                     code *= "txt *= string($(content.exp));"
                 end
             end
-        elseif isa(content, String)
-            code *= "txt *= \"$(replace(content, "\""=>"\\\""))\";"
+        elseif typeof(content) <: AbstractString
+            code *= "txt *= \"$content\";"
         end
     end
     expr = Meta.parse(code)
@@ -91,13 +94,13 @@ function (TCB::TmpCodeBlock)(filters::Dict{String, Symbol}, autoescape::Bool)
     end
 end
 
-CodeBlockVector = Vector{Union{String, JLCodeBlock, TmpCodeBlock, TmpBlock, VariableBlock, SuperBlock}}
-SubCodeBlockVector = Vector{Union{String, JLCodeBlock, TmpStatement, TmpBlock, VariableBlock, SuperBlock}}
+CodeBlockVector = Vector{Union{AbstractString, JLCodeBlock, TmpCodeBlock, TmpBlock, VariableBlock, SuperBlock}}
+SubCodeBlockVector = Vector{Union{AbstractString, JLCodeBlock, TmpStatement, TmpBlock, VariableBlock, SuperBlock}}
 
 function get_string(tb::TmpBlock)
     txt = ""
     for content in tb.contents
-        if typeof(content) == String
+        if typeof(content) <: AbstractString
             txt *= content
         end
     end

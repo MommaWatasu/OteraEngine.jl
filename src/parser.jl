@@ -114,14 +114,14 @@ function chop_space(s::AbstractString, nl::Bool, tail::Bool)
     if tail
         return chop(s, tail=i)
     else
-        return chop(s, head=i)
+        return chop(s, head=i, tail=0)
     end
 end
 
 function tokens2string(tokens::Vector{Token}, config::ParserConfig)
     txt = ""
     for token in tokens
-        if isa(token, String)
+        if typeof(token) <: AbstractString
             txt *= token
         elseif token == :plus
             txt *= '+'
@@ -148,10 +148,10 @@ function tokens2string(tokens::Vector{Token}, config::ParserConfig)
     return txt
 end
 
-function parse_meta(tokens::Vector{Token}, config::ParserConfig; parse_macro::Bool = false, include::Bool=false)
+function parse_meta(tokens::Vector{Token}, filters::Dict{String, Symbol}, config::ParserConfig; parse_macro::Bool = false, include::Bool=false)
     super = nothing
     out_tokens = Token[""]
-    macros = Dict{AbstractString, Vector{Token}}()
+    macros = Dict{String, String}()
     macro_def = ""
     macro_content = Vector{Token}()
     comment = false
@@ -174,12 +174,23 @@ function parse_meta(tokens::Vector{Token}, config::ParserConfig; parse_macro::Bo
                     lstrip_token = '-'
                     i += 1
                 end
-                !isa(tokens[i], String) && throw(ParserError("invalid control block: parser couldn't recognize the inside of control block"))
+                !(typeof(tokens[i]) <: AbstractString) && throw(ParserError("invalid control block: parser couldn't recognize the inside of control block"))
 
                 code = string(strip(tokens[i]))
                 if code == "endraw"
                     raw = false
-                    push!(out_tokens, tokens2string(tokens[raw_idx[1]:raw_idx[2]], config))
+                    s = tokens2string(tokens[raw_idx[1]:raw_idx[2]], config)
+                    if next_trim == ' '
+                        if config.trim_blocks
+                            if s[1] == '\n'
+                                s = s[2:end]
+                            end
+                        end
+                    elseif next_trim == '-'
+                        s = chop_space(s, true, false)
+                    end
+                    next_trim = ' '
+                    push!(out_tokens, s)
                     i += 1
                 else
                     i += 1
@@ -239,17 +250,17 @@ function parse_meta(tokens::Vector{Token}, config::ParserConfig; parse_macro::Bo
                 if tokens[i] == :plus
                     i += 1
                 elseif tokens[i] == :minus
-                    if isa(macro_content[end], String)
+                    if typeof(macro_content[end]) <: AbstractString
                         macro_content[end] = chop_space(macro_content[end], true, true)
                     end
                     i += 1
                 else
-                    if config.lstrip_blocks && isa(macro_content[end], AbstractString)
+                    if config.lstrip_blocks && typeof(macro_content[end]) <: AbstractString
                         macro_content[end] = chop_space(macro_content[end], false, true)
                     end
                 end
                 # check format
-                !isa(tokens[i], String) && throw(ParserError("invalid control block: parser couldn't recognize the inside of control block"))
+                !(typeof(tokens[i]) <: AbstractString) && throw(ParserError("invalid control block: parser couldn't recognize the inside of control block"))
                 
                 code = string(strip(tokens[i]))
                 operator = get_operator(code)
@@ -258,7 +269,11 @@ function parse_meta(tokens::Vector{Token}, config::ParserConfig; parse_macro::Bo
                 elseif operator == "macro"
                     throw(ParserError("nesting macro block is not allowed"))
                 elseif operator == "endmacro"
-                    macros[macro_def] = macro_content
+                    if config.autospace && typeof(macro_content[end]) <: AbstractString
+                        macro_content[1] = chop_space(macro_content[1], true, false)
+                        macro_content[end] = chop_space(macro_content[end], true, true)
+                    end
+                    macros[get_macro_name(macro_def)] = build_macro(macro_def, macro_content, filters, config)
                     macro_def = ""
                     macro_content = Vector{Token}()
                 elseif operator == "include"
@@ -301,9 +316,9 @@ function parse_meta(tokens::Vector{Token}, config::ParserConfig; parse_macro::Bo
             elseif tokens[i] == :comment_start
                 comment = true
     
-            # push other(assumed to be string) tokens
+            # push other tokens
             else
-                if isa(tokens[i], String)
+                if typeof(tokens[i]) <: AbstractString
                     s = tokens[i]
                     if isempty(s)
                         i += 1
@@ -335,17 +350,17 @@ function parse_meta(tokens::Vector{Token}, config::ParserConfig; parse_macro::Bo
             if tokens[i] == :plus
                 i += 1
             elseif tokens[i] == :minus
-                if isa(out_tokens[end], AbstractString)
+                if typeof(out_tokens[end]) <: AbstractString
                     out_tokens[end] = chop_space(out_tokens[end], true, true)
                 end
                 i += 1
             else
-                if config.lstrip_blocks && isa(out_tokens[end], AbstractString)
+                if config.lstrip_blocks && typeof(out_tokens[end]) <: AbstractString
                     out_tokens[end] = chop_space(out_tokens[end], false, true)
                 end
             end
             # check format
-            !isa(tokens[i], String) && throw(ParserError("invalid control block: parser couldn't recognize the inside of control block"))
+            !(typeof(tokens[i]) <: AbstractString) && throw(ParserError("invalid control block: parser couldn't recognize the inside of control block"))
             
             code = string(strip(tokens[i]))
             operator = get_operator(code)
@@ -357,13 +372,13 @@ function parse_meta(tokens::Vector{Token}, config::ParserConfig; parse_macro::Bo
                 include && throw(ParserError("invalid block: `import` must be at the top of templates"))
                 code_tokens = split(code[7:end])
                 file_name = code_tokens[1]
-                if code_tokens[3] != "as"
+                if code_tokens[2] != "as"
                     throw(ParserError("incorrect `import` block: your import block is broken. please look at the docs for detail."))
                 end
-                alias = code_tokens[4]
+                alias = code_tokens[3]
                 if file_name[1] == file_name[end] == '\"'
                     open(config.dir*"/"*file_name[2:end-1], "r") do f
-                        external_macros = parse_meta(read(f, String), filters, config, parse_macros=true)
+                        external_macros = parse_meta(tokenizer(read(f, String), config), filters, config, parse_macro=true)
                         for em in external_macros
                             macros[alias*"."*em[1]] = em[2]
                         end
@@ -380,7 +395,7 @@ function parse_meta(tokens::Vector{Token}, config::ParserConfig; parse_macro::Bo
                 file_name = import_st[:file_name]
                 external_macros = Dict()
                 open(config.dir*"/"*file_name[2:end-1], "r") do f
-                    external_macros = parse_meta(read(f, String), filters, config, parse_macros=true)
+                    external_macros = parse_meta(tokenizer(read(f, String), config), filters, config, parse_macro=true)
                 end
                 for macro_name in split(import_st[:body], ",")
                     def_element = split(macro_name)
@@ -404,7 +419,7 @@ function parse_meta(tokens::Vector{Token}, config::ParserConfig; parse_macro::Bo
                 file_name = strip(code[8:end])
                 if file_name[1] == file_name[end] == '\"'
                     open(config.dir*"/"*file_name[2:end-1], "r") do f
-                        _, external_tokens, external_macros = parse_meta(read(f, String), filters, config, include=true)
+                        external_tokens, external_macros = parse_meta(tokenizer(read(f, String), config), filters, config, include=true)
                         for em in external_macros
                             macros[alias*"."*em[1]] = em[2]
                         end
@@ -415,7 +430,12 @@ function parse_meta(tokens::Vector{Token}, config::ParserConfig; parse_macro::Bo
                 end
             elseif operator == "extends"
                 include && throw(ParserError("invalid block: `extends` must be at the top of templates"))
-                super = Template()
+                file_name = strip(code[8:end])
+                if file_name[1] == file_name[end] == '\"'
+                    super = Template(config.dir*"/"*file_name[2:end-1], config = config2dict(config))
+                else
+                    throw(ParserError("failed to read $file_name: file name have to be enclosed in double quotation marks"))
+                end
             else
                 append!(out_tokens, [:control_start, tokens[i], :control_end])
             end
@@ -443,16 +463,32 @@ function parse_meta(tokens::Vector{Token}, config::ParserConfig; parse_macro::Bo
         elseif tokens[i] == :comment_start
             comment = true
 
+            i += 1
+            # process lstrip token
+            if tokens[i] == :plus
+                i += 1
+            elseif tokens[i] == :minus
+                if typeof(out_tokens[end]) <: AbstractString
+                    out_tokens[end] = chop_space(out_tokens[end], true, true)
+                end
+                i += 1
+            else
+                if config.lstrip_blocks && typeof(out_tokens[end]) <: AbstractString
+                    out_tokens[end] = chop_space(out_tokens[end], false, true)
+                end
+            end
+            continue
+
         # push other(assumed to be string) tokens
         else
-            if isa(tokens[i], String)
+            if typeof(tokens[i]) <: AbstractString
                 s = tokens[i]
                 if isempty(s)
                     i += 1
                     continue
                 end
                 if next_trim == ' '
-                    if config.trim_blocks
+                    if config.trim_blocks && tokens[max(i-1, 1)] in [:control_end, :comment_end]
                         if s[1] == '\n'
                             s = s[2:end]
                         end
@@ -470,7 +506,145 @@ function parse_meta(tokens::Vector{Token}, config::ParserConfig; parse_macro::Bo
     end
     if parse_macro
         return macros
+    elseif include
+        return apply_macros(filter(x->x!="", out_tokens), macros, config), macros
     else
-        return super, filter(x->x!="", out_tokens), macros
+        return super, apply_macros(filter(x->x!="", out_tokens), macros, config)
     end
+end
+
+function parse_template(txt::String, filters::Dict{String, Symbol}, config::ParserConfig)
+    # tokenize
+    tokens = tokenizer(txt, config)
+    # process meta information
+    super, tokens = parse_meta(tokens, filters, config)
+
+    # array to store blocks
+    blocks = Vector{TmpBlock}()
+    # if position is in block this variable has non-zero value
+    # this variable is also used to validate the depth of start and end position
+    in_block_depth = 0
+    # code block depth
+    depth = 0
+    
+    # prepare the array to store the code blocks
+    elements = CodeBlockVector(undef, 0)
+    code_block = SubCodeBlockVector(undef, 0)
+    
+    i = 1
+    code = ""
+    while i <= length(tokens)
+        if tokens[i] == :control_start
+            i += 1
+            code = strip(tokens[i])
+            contents = split(code)
+            operator = contents[1]
+            
+            if operator == "endblock"
+                if in_block_depth == 0
+                    throw(ParserError("invalid end of block: `endblock` statement without `block` statement"))
+                elseif in_block_depth != 1
+                    throw(ParserError("invalid end of block: this block has the statement which is not closed"))
+                end
+                in_block_depth -= 1
+                push!(blocks, code_block[end])
+                if depth == 0
+                    push!(elements, TmpCodeBlock(code_block))
+                    code_block = SubCodeBlockVector(undef, 0)
+                end
+                
+            elseif operator == "block"
+                if in_block_depth != 0
+                    throw(ParserError("invalid block: nested block is invalid"))
+                end
+                in_block_depth += 1
+                push!(code_block, TmpBlock(contents[2], Vector()))
+                
+            elseif operator == "set"
+                if in_block_depth != 0
+                    push!(code_block[end], TmpStatement(code))
+                elseif depth == 0
+                    push!(elements, TmpCodeBlock([TmpStatement(code[4:end])]))
+                else
+                    push!(code_block, TmpStatement(code))
+                end
+
+            elseif operator == "end"
+                if depth == 0 && in_block_depth == 0
+                    throw(ParserError("`end` is found at block depth 0"))
+                elseif in_block_depth != 0
+                    in_block_depth -= 1
+                    in_block_depth == 0 && throw(ParserError("invalid `end` is found: this `end` should be `endblock`"))
+                    push!(code_block[end], TmpStatement("end"))
+                else
+                    depth -= 1
+                    push!(code_block, TmpStatement("end"))
+                    if depth == 0
+                        push!(elements, TmpCodeBlock(code_block))
+                        code_block = SubCodeBlockVector(undef, 0)
+                    end
+                end
+
+            else
+                if !(operator in ["for", "if", "elseif", "else", "let"])
+                    throw(ParserError("this block is invalid: $code"))
+                end
+                if in_block_depth != 0
+                    if operator in ["for", "if", "let"]
+                        in_block_depth += 1
+                    end
+                    push!(code_block[end], TmpStatement(code))
+                else
+                    if operator in ["for", "if", "let"]
+                        depth += 1
+                    end
+                    push!(code_block, TmpStatement(code))
+                end
+            end
+            
+            tokens[i+1] != :control_end && throw(ParserError("invalid control block: this block is not closed"))
+            i += 1
+            
+        elseif tokens[i] == :expression_start
+            i += 1
+            code = strip(tokens[i])
+
+            exp = (occursin(r"\(.*?\)", code)) ? SuperBlock(length(split(code, "."))) : VariableBlock(code)
+            if in_block_depth != 0
+                push!(code_block[end], exp)
+            elseif depth == 0
+                push!(elements, exp)
+            else
+                push!(code_block, exp)
+            end
+            tokens[i+1] != :expression_end && throw(ParserError("invalid expression block: this block is not closed"))
+            i += 1
+            
+        elseif tokens[i] == :jl_start
+            i += 1
+            code = tokens[i]
+            if in_block_depth != 0
+                push!(code_block[end], JLCodeBlock(code))
+            elseif depth == 0
+                push!(elements, JLCodeBlock(code))
+            else
+                push!(code_block, JLCodeBlock(code))
+            end
+            tokens[i+1] != :jl_end && throw(ParserError("invalid jl block: this block is not closed"))
+            i += 1
+            
+        elseif typeof(tokens[i]) <: AbstractString
+            if in_block_depth != 0
+                push!(code_block[end], tokens[i])
+            elseif depth == 0
+                push!(elements, tokens[i])
+            else
+                push!(code_block, tokens[i])
+            end
+        else
+            throw(ParserError("unexpexted token: $(tokens[i]) is unexpected. maybe the parser is broken."))
+        end
+        i += 1
+    end
+    return super, elements, blocks
 end
