@@ -15,6 +15,10 @@ Acutually, this package has only one structure, but these are very powerful beca
 Template
 @filter
 ```
+
+!!! info "WARNING caused by `template_render`"
+    Redefining template_render may generate a warning, but there is currently no problem.
+
 Learn about syntax and configuration in the sections below.
 
 ## Abstract for Usage
@@ -401,3 +405,6 @@ and the default configuration is this:
 "dir" => pwd()
 ```
 configurations can be loaded from TOML file. You don't have to specify all the configurations(The rest uses the default settings).
+
+!!! warning "Same character settings"
+    If you set the same characters into the different items, tokenizer won't be able to work. Even if they matches partially, tokenizer may not work. Moreover, `ParserConfig` checks the match between `~_start` and `~_end`, but others not.
