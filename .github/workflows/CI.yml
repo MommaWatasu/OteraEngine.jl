@@ -11,11 +11,12 @@ jobs:
         julia-version: ['1.8', '1.9']
     name: build OteraEngine
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Set up Julia
-        uses: julia-actions/setup-julia@v1
+        uses: julia-actions/setup-julia@latest
         with:
           version: ${{ matrix.julia-version }}
+        uses: julia-actions/cache@v1
       - name: Build package
         uses: julia-actions/julia-buildpkg@v1
       - name: Run Test
@@ -23,7 +24,7 @@ jobs:
       - name: Process coverage
         uses: julia-actions/julia-processcoverage@v1
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           file: lcov.info

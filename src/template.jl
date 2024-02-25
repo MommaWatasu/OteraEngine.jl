@@ -54,9 +54,9 @@ function Template(
     end
 
     # build config
-    filters = define_filters(filters)
+    tmp_filters = define_filters(filters)
     config = build_config(dir, config_path, config)
-    return Template(parse_template(txt, filters, config)..., filters, config)
+    return Template(parse_template(txt, tmp_filters, config)..., tmp_filters, config)
 end
 
 function define_filters(filters::Dict{String, Symbol})
@@ -116,7 +116,7 @@ function (Tmp::Template)(; init::Dict{String, T}=Dict{String, Any}()) where {T}
     end
     eval(build_render(Tmp.elements, init, Tmp.filters, Tmp.config.autoescape))
     try
-        return Base.invokelatest(template_render, values(init)...)
+        return string(lstrip(Base.invokelatest(template_render, values(init)...)))
     catch e
         throw(TemplateError("failed to render: following error occurred during rendering:\n$e"))
     end
@@ -134,7 +134,7 @@ function (Tmp::Template)(init::Dict{String, T}, blocks::Vector{TmpBlock}) where 
     end
     eval(build_render(elements, init, Tmp.filters, Tmp.config.autoescape))
     try
-        return Base.invokelatest(template_render, values(init)...)
+        return string(lstrip(Base.invokelatest(template_render, values(init)...)))
     catch e
         throw(TemplateError("failed to render: following error occurred during rendering:\n$e"))
     end
@@ -145,7 +145,7 @@ function build_render(elements::CodeBlockVector, init::Dict{String, T}, filters:
         txt = ""
     end
     for e in elements
-        if isa(e, String)
+        if typeof(e) <: AbstractString
             push!(body.args, :(txt *= $e))
         elseif isa(e, JLCodeBlock)
             code = Meta.parse(replace(rstrip(e.code), "\n"=>";"))

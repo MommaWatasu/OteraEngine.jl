@@ -12,7 +12,7 @@ using Test
     @test result == tmp(init=Dict("usr"=>"Julia"))
     
     # In case of no params and specified config
-    tmp = Template("config.html", config=Dict("jl_block_start"=>"```", "jl_block_end"=>"```"))
+    tmp = Template("config.html", config=Dict("jl_block_start"=>"```code", "jl_block_end"=>"```"))
     regex = r"<strong>\s*(?<value>[0-9]*)\s*?</strong>"
     m = match(regex, tmp())
     @test 0 <= parse(Int, m[:value]) <= 100
@@ -54,7 +54,7 @@ using Test
 
     # check Julia block inside inherited block
     tmp = Template("super4.html", config=Dict("lstrip_blocks"=>true, "trim_blocks"=>true))
-    @test occursin("Hello from Julia", tmp()) broken=true
+    @test occursin("Hello from Julia", tmp())
 
     # check TmpBlock
     tmp = Template("block1.html", config=Dict("lstrip_blocks"=>true, "trim_blocks"=>true))
@@ -77,7 +77,7 @@ using Test
     @test result == tmp()
 
     # filters
-    @filter function test_filter(txt)
+    @test_nowarn @filter function test_filter(txt)
         if txt == "Hello"
             return "World"
         else
@@ -95,14 +95,14 @@ using Test
     @test result == tmp(init=Dict("title"=>"upper case", "greet"=>"Hello"))
 
     # macro
-    tmp = Template("macro1.html")
+    tmp = Template("macro1.html", config=Dict("autospace"=>true, "trim_blocks"=>true, "lstrip_blocks"=>true))
     open("macro2.html", "r") do f
         result = read(f, String)
     end
     @test result == tmp()
 
     # check import block
-    tmp = Template("import1.html")
+    tmp = Template("import1.html", config=Dict("lstrip_blocks"=>true, "trim_blocks"=>true, "autospace"=>true))
     @test result == tmp()
 
     tmp = Template("from1.html", config=Dict("lstrip_blocks"=>true, "trim_blocks"=>true, "autospace"=>true))

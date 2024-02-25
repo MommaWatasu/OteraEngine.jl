@@ -1,59 +1,90 @@
-get_macro_name(macro_def::String) = match(r"(?<name>.*?)\(.*?\)", macro_def)[:name]
-get_macro_args(macro_def::String) = match(r".*?(?<args>\(.*?\))", macro_def)[:args]
-
-function build_macro(macro_def::String, txt::String, filters::Dict{String, Symbol}, config::ParserConfig)
-    out_txt = ""
-    idx = 1
-    for m in eachmatch(r"\{\{\s*(?<variable>.*?)\s*\}\}", txt)
-        if occursin("|>", m[:variable])
-            exp = split(m[:variable], "|>")
-            f = filters[exp[2]]
-            if config.autoescape && f != htmlesc
-                out_txt *= txt[idx:m.offset-1] * "\$(htmlesc($f(string($(exp[1])))))"
-            else
-                out_txt *= txt[idx:m.offset-1] * "\$($f(string($(exp[1]))))"
-            end
-        else
-            if config.autoescape
-                out_txt *= txt[idx:m.offset-1] * "\$(htmlesc(string($(m[:variable]))))"
-            else
-                out_txt *= txt[idx:m.offset-1] * "\$" * m[:variable]
-            end
+function get_macro_name(macro_def::AbstractString)
+    for i in 1 : length(macro_def)
+        if @inbounds macro_def[i] == '('
+            return @inbounds macro_def[1:i-1]
         end
-        idx = m.offset + length(m.match)
     end
-    out_txt *= txt[idx:end]
-    return get_macro_args(macro_def) * "-> \"\"\"" * out_txt * "\"\"\""
+end
+function get_macro_args(macro_def::AbstractString)
+    for i in 1 : length(macro_def)
+        if @inbounds macro_def[i] == '('
+            return macro_def[i:end]
+        end
+    end
 end
 
-function apply_macros(txt::String, macros::Dict{String, String}, config::ParserConfig)
-    for (name, def) in zip(keys(macros), values(macros))
+function build_macro(macro_def::AbstractString, contents::Vector{Token}, filters::Dict{String, Symbol}, config::ParserConfig)
+    out_contents = Vector{Token}()
+    i = 1
+    while i <= length(contents)
+        if contents[i] == :expression_start
+            i += 1
+            code = string(strip(contents[i]))
+            if occursin("|>", code)
+                exp = split(code, "|>")
+                f = filters[exp[2]]
+                if config.autospace && f != htmlesc
+                    push!(out_contents, "\$(htmlesc($f(string($(exp[1])))))")
+                else
+                    push!(out_contents, "\$($f(string($(exp[1]))))")
+                end
+            else
+                if config.autospace
+                    push!(out_contents, "\$(htmlesc(string($(code))))")
+                else
+                    push!(out_contents, "\$"*code)
+                end
+            end
+            contents[i+1] != :expression_end && throw(ParserError("invalid expression block: this block is not closed"))
+            i += 1
+        else
+            push!(out_contents, contents[i])
+        end
+        i += 1
+    end
+    return get_macro_args(macro_def) * " = " * replace(string(out_contents), "\\\$"=>"\$")
+end
+
+function apply_macros(tokens::Vector{Token}, macros::Dict{String, String}, config::ParserConfig)
+    for m in macros
+        name = m[1]
         path = split(name, ".")
         if length(path) != 1
             name = path[end]
         end
-        eval(Meta.parse(name*"="*def))
+        eval(Meta.parse(name*m[2]))
     end
-    re = Regex("$(config.expression_block[1])\\s*(?<name>.*?)(?<body>\\(.*?\\))\\s*$(config.expression_block[2])")
-    m = match(re, txt)
-    while !isnothing(m)
-        split(m[:name], ".")[end] == "super" && break
-        if haskey(macros, m[:name])
-            path = split(m[:name], ".")
+    
+    regex = r"\s*(?<name>.*?)(?<args>\(.*?\))"
+    i = 1
+    while i <= length(tokens)
+        if tokens[i] == :expression_start
+            i += 1
+            # check wether the block is a macro caller or not
+            r = match(regex, tokens[i])
+            r == nothing && continue
+            !haskey(macros, r[:name]) && continue
+            
+            path = split(r[:name], ".")
             if length(path) != 1
                 name = path[end]
             else
-                name = m[:name]
+                name = r[:name]
             end
+            
+            macro_out = nothing
             try
-                txt = txt[1:m.offset-1]*eval(Meta.parse(name*m[:body]))*txt[m.offset+length(m.match):end]
+                macro_out = eval(Meta.parse(name*r[:args]))
             catch e
-                throw(ParserError("invalid macro: failed to call macro in $(m.match) because of the following error\n$e"))
+                throw(ParserError("invalid macro; failed to call macro in $(tokens[i]) because of the following error\n$e"))
             end
-        else
-            throw(ParserError("invalid macro call: cannot call $(m.match) because $(m[:name]) is not defined"))
+            
+            tokens[i+1] != :expression_end && throw(ParserError("invalid expression block: this block is not closed"))
+            tokens = vcat(tokens[1:i-2], macro_out, tokens[i+2:end])
+            i+=length(macro_out)
+            continue
         end
-        m = match(re, txt)
+        i += 1
     end
-    return txt
+    return tokens
 end

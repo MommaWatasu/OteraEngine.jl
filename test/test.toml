@@ -1,2 +1,2 @@
-jl_block_start = "```"
+jl_block_start = "```code"
 jl_block_end = "```"
