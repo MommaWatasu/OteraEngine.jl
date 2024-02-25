@@ -54,7 +54,7 @@ using Test
 
     # check Julia block inside inherited block
     tmp = Template("super4.html", config=Dict("lstrip_blocks"=>true, "trim_blocks"=>true))
-    @test occursin("Hello from Julia", tmp()) broken = true
+    @test occursin("Hello from Julia", tmp())
 
     # check TmpBlock
     tmp = Template("block1.html", config=Dict("lstrip_blocks"=>true, "trim_blocks"=>true))

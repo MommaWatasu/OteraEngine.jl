@@ -29,6 +29,9 @@ function (TB::TmpBlock)(filters::Dict{String, Symbol}, autoescape::Bool)
         t = typeof(content)
         if isa(content, TmpStatement)
             code *= "$(content.st);"
+        elseif isa(content, JLCodeBlock)
+            jl_code = replace(content.code, "\n"=>";")
+            code *= "txt *= begin;$jl_code;end;"
         elseif isa(content, VariableBlock)
             if occursin("|>", content.exp)
                 exp = map(strip, split(content.exp, "|>"))
