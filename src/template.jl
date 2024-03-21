@@ -179,5 +179,6 @@ function build_render(elements::CodeBlockVector, init::Dict{String, T}, filters:
             throw(TemplateError("invalid super block is found"))
         end
     end
+    push!(body.args, :(return txt))
     return Expr(:function, Expr(:call, :template_render, map(Symbol, collect(keys(init)))...), body)
 end
