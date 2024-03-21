@@ -11,21 +11,21 @@ function tokenizer(txt::String, config::ParserConfig)
     idx = 1
     i = 1
     while i <= length(txt)
-        if txt[i:min(i+length(config.control_block[1])-1, end)] == config.control_block[1]
+        if txt[i:min(nextind(txt, i, length(config.control_block[1])-1), end)] == config.control_block[1]
             push!(tokens, txt[idx:i-1])
             push!(tokens, :control_start)
             char = txt[min(i+length(config.control_block[1]), end)]
             if char == '+'
-                i += 1
+				i = nextind(txt, i)
                 push!(tokens, :plus)
             elseif char == '-'
                 push!(tokens, :minus)
-                i += 1
+				i = nextind(txt, i)
             end
-            i += length(config.control_block[1])
+            i = nextind(txt, i, length(config.control_block[1]))
             idx = i
             block_start = true
-        elseif txt[i:min(i+length(config.control_block[2])-1, end)] == config.control_block[2]
+        elseif txt[i:min(nextind(txt, i, length(config.control_block[2])-1), end)] == config.control_block[2]
             char = txt[max(1, i-1)]
             if char == '+'
                 push!(tokens, txt[idx:i-2])
@@ -37,40 +37,40 @@ function tokenizer(txt::String, config::ParserConfig)
                 push!(tokens, txt[idx:i-1])
             end
             push!(tokens, :control_end)
-            i += length(config.control_block[2])
+            i = nextind(txt, i, length(config.control_block[2]))
             idx = i
-        elseif txt[i:min(i+length(config.expression_block[1])-1, end)] == config.expression_block[1]
+        elseif txt[i:min(nextind(txt, i, length(config.expression_block[1])-1), end)] == config.expression_block[1]
             push!(tokens, txt[idx:i-1])
             push!(tokens, :expression_start)
-            i += length(config.expression_block[1])
+            i = nextind(txt, i, length(config.expression_block[1]))
             idx = i
-        elseif txt[i:min(i+length(config.expression_block[2])-1, end)] == config.expression_block[2]
+        elseif txt[i:min(nextind(txt, i, length(config.expression_block[2])-1), end)] == config.expression_block[2]
             push!(tokens, txt[idx:i-1])
             push!(tokens, :expression_end)
-            i += length(config.expression_block[2])
+            i = nextind(txt, i, length(config.expression_block[2]))
             idx = i
-        elseif txt[i:min(i+length(config.jl_block[1])-1, end)] == config.jl_block[1]
+        elseif txt[i:min(nextind(txt, i, length(config.jl_block[1])-1), end)] == config.jl_block[1]
             push!(tokens, txt[idx:i-1])
             push!(tokens, :jl_start)
-            i += length(config.jl_block[1])
+            i = nextind(txt, i, length(config.jl_block[1]))
             idx = i
-        elseif txt[i:min(i+length(config.jl_block[2])-1, end)] == config.jl_block[2]
+        elseif txt[i:min(nextind(txt, i, length(config.jl_block[2])-1), end)] == config.jl_block[2]
             push!(tokens, txt[idx:i-1])
             push!(tokens, :jl_end)
-            i += length(config.jl_block[2])
+            i = nextind(txt, i, length(config.jl_block[2]))
             idx = i
-        elseif txt[i:min(i+length(config.comment_block[1])-1, end)] == config.comment_block[1]
+        elseif txt[i:min(nextind(txt, i, length(config.comment_block[1])-1), end)] == config.comment_block[1]
             push!(tokens, txt[idx:i-1])
             push!(tokens, :comment_start)
-            i += length(config.comment_block[1])
+            i = nextind(txt, i, length(config.comment_block[1]))
             idx = i
-        elseif txt[i:min(i+length(config.comment_block[2])-1, end)] == config.comment_block[2]
+        elseif txt[i:min(nextind(txt, i, length(config.comment_block[2])-1), end)] == config.comment_block[2]
             push!(tokens, txt[idx:i-1])
             push!(tokens, :comment_end)
-            i += length(config.comment_block[2])
+            i = nextind(txt, i, length(config.comment_block[2]))
             idx = i
         else
-            i += 1
+			i = nextind(txt, i)
         end
     end
     push!(tokens, txt[idx:end])
