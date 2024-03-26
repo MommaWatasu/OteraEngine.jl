@@ -10,7 +10,8 @@ function tokenizer(txt::String, config::ParserConfig)
     tokens = Vector{Token}()
     idx = 1
     i = 1
-    while i <= length(txt)
+
+    for i in eachindex(txt)
         if txt[i:min(nextind(txt, i, length(config.control_block[1])-1), end)] == config.control_block[1]
             push!(tokens, txt[idx:i-1])
             push!(tokens, :control_start)
