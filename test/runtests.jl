@@ -137,4 +137,11 @@ using Test
         result = read(f, String)
     end
     @test result == tmp()
+
+    # test for character code
+    tmp = Template("char_code1.html")
+    open("char_code2.html", "r") do f
+        result = read(f, String)
+    end
+    @test tmp() == result
 end

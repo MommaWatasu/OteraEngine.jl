@@ -1,0 +1,12 @@
+<html>
+    <head><title>character code</title></head>
+    <body>
+        これは、文字コードのテストです。
+        {% for i in 1 : 10 -%}
+            うまく日本語は表示できていますか？{{i}}
+        {% end -%}
+        {% if true -%}
+            ¿Puedo ver español?
+        {%- end %}
+    </body>
+</html>
