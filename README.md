@@ -6,8 +6,6 @@
 |:------------:|:------:|:--------:|
 |[![CI][CI-img]][CI-url] |[![codecov][codecov-img]][codecov-url]|[![docs dev][docs-dev-img]][docs-dev-url] [![docs stable][docs-stable-img]][docs-stable-url]|
 
-The stable docs is currently broken, so please take a look at the dev docs.
-
 ## Abstract
 This is the template engine for JuliaLang.
 features
