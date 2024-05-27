@@ -125,11 +125,11 @@ function tokens2string(tokens::Vector{Token}, config::ParserConfig)
         elseif token == :expression_start
             txt *= config.expression_block[1]
         elseif token == :expression_end
-            txt += config.expression_block[2]
+            txt *= config.expression_block[2]
         elseif token == :jl_start
             txt *= config.jl_block[1]
         elseif token == :jl_end
-            txt +~ config.jl_block[2]
+            txt *= config.jl_block[2]
         elseif token == :comment_start
             txt *= config.comment_block[1]
         elseif token == :comment_end
