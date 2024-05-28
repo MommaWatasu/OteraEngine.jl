@@ -45,6 +45,13 @@ using Test
     end
     @test result == tmp()
 
+    # check empty extends block
+    tmp = Template("extendsempty.html", config=Dict("lstrip_blocks"=>true, "trim_blocks"=>true))
+    open("extendsemptyexpected.html", "r") do f
+        result = read(f, String)
+    end
+    @test result == tmp()
+
     # check super block
     tmp = Template("super1.html", config=Dict("lstrip_blocks"=>true, "trim_blocks"=>true))
     open("super3.html", "r") do f

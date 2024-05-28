@@ -90,7 +90,9 @@ function (TCB::TmpCodeBlock)(filters::Dict{String, Symbol}, autoescape::Bool)
         end
     end
     expr = Meta.parse(code)
-    if expr.head == :toplevel
+    if expr === nothing
+        return ""
+    elseif expr.head == :toplevel
         return Expr(:block, expr.args...)
     else
         return expr
