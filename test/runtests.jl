@@ -46,8 +46,8 @@ using Test
     @test result == tmp()
 
     # check empty extends block
-    tmp = Template("extendsempty.html", config=Dict("lstrip_blocks"=>true, "trim_blocks"=>true))
-    open("extendsemptyexpected.html", "r") do f
+    tmp = Template("extendsempty1.html", config=Dict("lstrip_blocks"=>true, "trim_blocks"=>true))
+    open("extendsempty2.html", "r") do f
         result = read(f, String)
     end
     @test result == tmp()
