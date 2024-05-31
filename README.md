@@ -10,7 +10,7 @@
 This is the template engine for JuliaLang.
 features
 - Very very small! There are no dependency.
-- You can write a Julia code directly in HTML.
+- Jinja-like syntax. Easy to use usage.
 
 ## Installation
 
