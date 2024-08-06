@@ -139,6 +139,13 @@ using Test
     end
     @test result == tmp(init=Dict("attack"=>"<script>This is injection attack</script>"))
 
+    # use |> safe filter
+    tmp = Template("safe.html")
+    open("autoescape2.html", "r") do f
+        result = read(f, String)
+    end
+    @test result == tmp(init=Dict("attack"=>"<script>This is injection attack</script>"))
+
     tmp = Template("space_control1.html")
     open("space_control2.html", "r") do f
         result = read(f, String)
