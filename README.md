@@ -1,6 +1,8 @@
 # OteraEngine
 
-![logo](assets/logo.png)
+<div align="center">
+  <img src="assets/logo.png">
+</div>
 
 |GitHub Actions|CodeCov|Docs|
 |:------------:|:------:|:--------:|
