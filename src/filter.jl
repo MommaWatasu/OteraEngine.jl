@@ -1,4 +1,28 @@
-filters = Expr[:(e=htmlesc), :(escape=htmlesc), :(upper=uppercase), :(lower=lowercase)]
+struct SafeString
+    str::String
+end
+
+function htmlesc(str::String)
+    return Markdown.htmlesc(str)
+end
+
+function htmlesc(str::SafeString)
+    return str.str
+end
+
+function safe(str::String)
+    return SafeString(str)
+end
+
+function safe(str::SafeString   )
+    return str
+end
+
+function Base.string(str::SafeString)
+    return str
+end
+
+filters = Expr[:(e=htmlesc), :(escape=htmlesc), :(upper=uppercase), :(lower=lowercase), :(safe=safe)]
 
 """
     @filter func

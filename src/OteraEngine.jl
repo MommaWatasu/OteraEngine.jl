@@ -1,7 +1,7 @@
 module OteraEngine
 
 using TOML
-import Markdown: htmlesc
+import Markdown: Markdown
 
 export Template, @filter
 
