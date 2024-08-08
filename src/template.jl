@@ -71,6 +71,7 @@ function define_filters(filters::Dict{String, Symbol})
         "escape" => :htmlesc,
         "upper" => :uppercase,
         "lower" => :lowercase,
+        "safe" => :safe,
     )
     for key in keys(filters)
         filters_dict[key] = filters[key]
