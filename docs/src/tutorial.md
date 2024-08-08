@@ -57,6 +57,7 @@ variable name and filter name are separeted by `|>`. Built-in filters are follow
 - `escape` or `e`: escape variables with `Markdown.htmlesc`
 - `upper`: convert variables into uppercase
 - `lower`: convert variables into lowercase
+- `safe`: protect literal html fragments (from autoescape)
 
 You can define filters by yourself:
 ```julia
@@ -108,13 +109,13 @@ Template:
 Without `lstrip blocks`:
 ```
 <div>
-    
+
         Hello 1
-    
+
         Hello 2
-    
+
         Hello 3
-    
+
 </div>
 ```
 With `lstrip_blocks`(you can't see the difference. please try selecting the text):
@@ -342,7 +343,7 @@ This is the example:
         {{ input("test") }}
     </body>
 </html>
-``` 
+```
 You should note that macro emits extra white space when you don't use any white space control options. So, it is strongly recommended to use `autospace` when you use macros.
 
 ## Import Macros
