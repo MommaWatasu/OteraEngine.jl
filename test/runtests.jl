@@ -52,6 +52,13 @@ using Test
     end
     @test result == tmp()
 
+    # check nested extends block
+    tmp = Template("nestedextends1.html", config=Dict("lstrip_blocks"=>true, "trim_blocks"=>true))
+    open("extends4.html", "r") do f
+        result = read(f, String)
+    end
+    @test result == tmp()
+
     # check super block
     tmp = Template("super1.html", config=Dict("lstrip_blocks"=>true, "trim_blocks"=>true))
     open("super3.html", "r") do f
