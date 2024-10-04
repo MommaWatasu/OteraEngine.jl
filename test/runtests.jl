@@ -97,9 +97,9 @@ using Test
     @testset "safe tests" begin
         @test safe("Hello") == SafeString("Hello")
         @test safe(SafeString("Already Safe")) == SafeString("Already Safe")
-        @test string(SafeString("Convert Me")) == "Convert Me"
+        @test string(SafeString("Convert Me")) == SafeString("Convert Me")
     end
-    
+
     # Test @filter macro
     @testset "filter macro tests" begin
         @filter function greet(x)
