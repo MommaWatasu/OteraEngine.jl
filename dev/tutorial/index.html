@@ -9,10 +9,10 @@
 julia&gt; txt = &quot;Hello {{ usr }}!&quot;
 julia&gt; tmp = Template(txt, path = false)
 julia&gt; init = Dict(&quot;usr&quot;=&gt;&quot;OteraEngine&quot;)
-julia&gt; tmp(init = init)</code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/MommaWatasu/OteraEngine.jl/blob/1d8b2e54e7ad2e08a0f738a6f6f9a83c06d38997/src/template.jl#L1-L29">source</a></section></article><article class="docstring"><header><a class="docstring-article-toggle-button fa-solid fa-chevron-down" href="javascript:;" title="Collapse docstring"></a><a class="docstring-binding" id="Main.OteraEngine.@filter" href="#Main.OteraEngine.@filter"><code>Main.OteraEngine.@filter</code></a> — <span class="docstring-category">Macro</span><span class="is-flex-grow-1 docstring-article-toggle-button" title="Collapse docstring"></span></header><section><div><pre><code class="language-julia hljs">@filter func</code></pre><p>This macro registers <code>func</code> into OteraEngine, then you can use it as a filter(of course you have to pass it to filters argument of Template function). The form of <code>func</code> should be normal or one-line definition but not lambda.</p><p><strong>Example</strong></p><pre><code class="language-julia-repr hljs">julia&gt; @filter function greet(x)
+julia&gt; tmp(init = init)</code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/MommaWatasu/OteraEngine.jl/blob/e1a318ee09d9fb90025d6f7a3f724517084c703c/src/template.jl#L1-L29">source</a></section></article><article class="docstring"><header><a class="docstring-article-toggle-button fa-solid fa-chevron-down" href="javascript:;" title="Collapse docstring"></a><a class="docstring-binding" id="Main.OteraEngine.@filter" href="#Main.OteraEngine.@filter"><code>Main.OteraEngine.@filter</code></a> — <span class="docstring-category">Macro</span><span class="is-flex-grow-1 docstring-article-toggle-button" title="Collapse docstring"></span></header><section><div><pre><code class="language-julia hljs">@filter func</code></pre><p>This macro registers <code>func</code> into OteraEngine, then you can use it as a filter(of course you have to pass it to filters argument of Template function). The form of <code>func</code> should be normal or one-line definition but not lambda.</p><p><strong>Example</strong></p><pre><code class="language-julia-repr hljs">julia&gt; @filter function greet(x)
             return x * &quot;Hello&quot;
         end
-julia&gt; @filter say_twice(x) = x*x</code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/MommaWatasu/OteraEngine.jl/blob/1d8b2e54e7ad2e08a0f738a6f6f9a83c06d38997/src/filter.jl#L27-L39">source</a></section></article><div class="admonition is-info"><header class="admonition-header">WARNING caused by `template_render`</header><div class="admonition-body"><p>Redefining template_render may generate a warning, but there is currently no problem.</p></div></div><p>Learn about syntax and configuration in the sections below.</p><h2 id="Abstract-for-Usage"><a class="docs-heading-anchor" href="#Abstract-for-Usage">Abstract for Usage</a><a id="Abstract-for-Usage-1"></a><a class="docs-heading-anchor-permalink" href="#Abstract-for-Usage" title="Permalink"></a></h2><p>Basic syntax of OteraEngine is very similar to one of Jinja2 of Python. You can use OteraEngine for any extension format which has text. There are 4 types of blocks:</p><ul><li><code>{% ... %}</code>: Control block</li><li><code>{{ ... }}</code>: Expression block</li><li><code>{&lt; ... &gt;}</code>: Julia block</li><li><code>{# ... #}</code>: Comment block</li></ul><p>Control block is used for control flow like <code>if</code> or <code>for</code>, and Expression block is used for embedding variables. Commend block is just ignored and remove from template. These block must be familiar with those who have ever used jinja2, but OteraEngine has one more block. Julia block makes you possible to write Julia code directly into templates.</p><h2 id="Variables"><a class="docs-heading-anchor" href="#Variables">Variables</a><a id="Variables-1"></a><a class="docs-heading-anchor-permalink" href="#Variables" title="Permalink"></a></h2><p>As mentioned in previous section, you can embed variables with Expression block. And you can define variables in both templates and julia. Here is an example:</p><pre><code class="nohighlight hljs">&lt;div&gt;
+julia&gt; @filter say_twice(x) = x*x</code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/MommaWatasu/OteraEngine.jl/blob/e1a318ee09d9fb90025d6f7a3f724517084c703c/src/filter.jl#L27-L39">source</a></section></article><div class="admonition is-info"><header class="admonition-header">WARNING caused by `template_render`</header><div class="admonition-body"><p>Redefining template_render may generate a warning, but there is currently no problem.</p></div></div><p>Learn about syntax and configuration in the sections below.</p><h2 id="Abstract-for-Usage"><a class="docs-heading-anchor" href="#Abstract-for-Usage">Abstract for Usage</a><a id="Abstract-for-Usage-1"></a><a class="docs-heading-anchor-permalink" href="#Abstract-for-Usage" title="Permalink"></a></h2><p>Basic syntax of OteraEngine is very similar to one of Jinja2 of Python. You can use OteraEngine for any extension format which has text. There are 4 types of blocks:</p><ul><li><code>{% ... %}</code>: Control block</li><li><code>{{ ... }}</code>: Expression block</li><li><code>{&lt; ... &gt;}</code>: Julia block</li><li><code>{# ... #}</code>: Comment block</li></ul><p>Control block is used for control flow like <code>if</code> or <code>for</code>, and Expression block is used for embedding variables. Commend block is just ignored and remove from template. These block must be familiar with those who have ever used jinja2, but OteraEngine has one more block. Julia block makes you possible to write Julia code directly into templates.</p><h2 id="Variables"><a class="docs-heading-anchor" href="#Variables">Variables</a><a id="Variables-1"></a><a class="docs-heading-anchor-permalink" href="#Variables" title="Permalink"></a></h2><p>As mentioned in previous section, you can embed variables with Expression block. And you can define variables in both templates and julia. Here is an example:</p><pre><code class="language-html hljs">&lt;div&gt;
     {% let name = &quot;Julia&quot; %}
         Hello {{name}}
     {% end %}
@@ -21,20 +21,20 @@ tmp(init=Dict(&quot;name&quot;=&gt;&quot;Julia&quot;))</code></pre><p>init is al
 filters = Dict(
     &quot;repeat&quot; =&gt; say_twice
 )
-tmp = Template(..., filters=filters)</code></pre><p>Then you can use <code>repeat</code> in you template.</p><h2 id="Julia-Code-Block"><a class="docs-heading-anchor" href="#Julia-Code-Block">Julia Code Block</a><a id="Julia-Code-Block-1"></a><a class="docs-heading-anchor-permalink" href="#Julia-Code-Block" title="Permalink"></a></h2><p>You can write Julia deirectly in templates with this block. Variables are shared between Julia Code Block and Tmp Code Block, and variables defined in <code>init</code> are also available. And arbitary type(for example DataFrame) are available in this block. This is the example:</p><pre><code class="nohighlight hljs">&lt;div&gt;
+tmp = Template(..., filters=filters)</code></pre><p>Then you can use <code>repeat</code> in you template.</p><h2 id="Julia-Code-Block"><a class="docs-heading-anchor" href="#Julia-Code-Block">Julia Code Block</a><a id="Julia-Code-Block-1"></a><a class="docs-heading-anchor-permalink" href="#Julia-Code-Block" title="Permalink"></a></h2><p>You can write Julia deirectly in templates with this block. Variables are shared between Julia Code Block and Tmp Code Block, and variables defined in <code>init</code> are also available. And arbitary type(for example DataFrame) are available in this block. This is the example:</p><pre><code class="language-html hljs">&lt;div&gt;
     {&lt;
         a = 10
         b = sqrt(2)
         round(a*B)
     &gt;}
-&lt;/div&gt;</code></pre><p>Output:</p><pre><code class="nohighlight hljs">&lt;div&gt;
+&lt;/div&gt;</code></pre><p>Output:</p><pre><code class="language-html hljs">&lt;div&gt;
     14.0
 &lt;/div&gt;</code></pre><h2 id="Comment"><a class="docs-heading-anchor" href="#Comment">Comment</a><a id="Comment-1"></a><a class="docs-heading-anchor-permalink" href="#Comment" title="Permalink"></a></h2><p>To comment out part of template, use comment block which set to <code>{# #}</code> by default:</p><pre><code class="nohighlight hljs">{#
     This is comment.
     These lines are just ignored and removed
 #}</code></pre><h2 id="White-Space-Control"><a class="docs-heading-anchor" href="#White-Space-Control">White Space Control</a><a id="White-Space-Control-1"></a><a class="docs-heading-anchor-permalink" href="#White-Space-Control" title="Permalink"></a></h2><p>OteraEngine has option to control spaces which is named <code>lstrip_blocks</code> and <code>trim_blocks</code>. If <code>lstrip_blocks</code> is enabled, spaces from start of line behind the block is removed. Template:</p><pre><code class="nohighlight hljs">{% for i in 1:3 %}
     Hello {{ i }}
-{% end %}</code></pre><p>Without <code>lstrip blocks</code>:</p><pre><code class="nohighlight hljs">&lt;div&gt;
+{% end %}</code></pre><p>Without <code>lstrip blocks</code>:</p><pre><code class="language-html hljs">&lt;div&gt;
 
         Hello 1
 
@@ -42,7 +42,7 @@ tmp = Template(..., filters=filters)</code></pre><p>Then you can use <code>repea
 
         Hello 3
 
-&lt;/div&gt;</code></pre><p>With <code>lstrip_blocks</code>(you can&#39;t see the difference. please try selecting the text):</p><pre><code class="nohighlight hljs">&lt;div&gt;
+&lt;/div&gt;</code></pre><p>With <code>lstrip_blocks</code>(you can&#39;t see the difference. please try selecting the text):</p><pre><code class="language-html hljs">&lt;div&gt;
 
         Hello 1
 
@@ -50,23 +50,23 @@ tmp = Template(..., filters=filters)</code></pre><p>Then you can use <code>repea
 
         Hello 3
 
-&lt;/div&gt;</code></pre><p>If <code>trim_blocks</code> is enabled, the (only) first newline after the block is removed. Without <code>trim_blocks</code>(<code>lstrip_blocks</code> is disabled):</p><pre><code class="nohighlight hljs">&lt;div&gt;
+&lt;/div&gt;</code></pre><p>If <code>trim_blocks</code> is enabled, the (only) first newline after the block is removed. Without <code>trim_blocks</code>(<code>lstrip_blocks</code> is disabled):</p><pre><code class="language-html hljs">&lt;div&gt;
             Hello 1
             Hello 2
             Hello 3
-    &lt;/div&gt;</code></pre><p>With <code>trim_blocks</code> and <code>lstrip_blocks</code>:</p><pre><code class="nohighlight hljs">&lt;div&gt;
+    &lt;/div&gt;</code></pre><p>With <code>trim_blocks</code> and <code>lstrip_blocks</code>:</p><pre><code class="language-html hljs">&lt;div&gt;
         Hello 1
         Hello 2
         Hello 3
-&lt;/div&gt;</code></pre><p>But, sometimes these options aren&#39;t perfect(like macro), and it&#39;s annoying to set these options all the time. So, you can use <code>autospace</code> option which automatically enables these options and remove extra spaces from macro.</p><p>And other way to control white spaces is to add <code>+</code> and <code>-</code> to the both ends of blocks. This works partially even if space control options are enabled. <code>+</code> means that the block does nothing about space. And <code>-</code> means that the block removes all the spaces. This is useful when you want to put items in a row with <code>for</code> block:</p><pre><code class="nohighlight hljs">&lt;div&gt;
+&lt;/div&gt;</code></pre><p>But, sometimes these options aren&#39;t perfect(like macro), and it&#39;s annoying to set these options all the time. So, you can use <code>autospace</code> option which automatically enables these options and remove extra spaces from macro.</p><p>And other way to control white spaces is to add <code>+</code> and <code>-</code> to the both ends of blocks. This works partially even if space control options are enabled. <code>+</code> means that the block does nothing about space. And <code>-</code> means that the block removes all the spaces. This is useful when you want to put items in a row with <code>for</code> block:</p><pre><code class="language-html hljs">&lt;div&gt;
     {% for i in 1 : 10 -%}
     {{i}}
     {%- end %}
-&lt;/div&gt;</code></pre><p>Output:</p><pre><code class="nohighlight hljs">&lt;div&gt;
+&lt;/div&gt;</code></pre><p>Output:</p><pre><code class="language-html hljs">&lt;div&gt;
     12345678910
-&lt;/div&gt;</code></pre><h2 id="Escaping"><a class="docs-heading-anchor" href="#Escaping">Escaping</a><a id="Escaping-1"></a><a class="docs-heading-anchor-permalink" href="#Escaping" title="Permalink"></a></h2><p>It is important to apply HTML escaping in order to prevent XSS. So, <code>autoescape</code> is set to <code>true</code> by default. If you want to escape manually, you can disable this option, and use <code>e</code> or <code>escape</code> filter into expression blocks:</p><pre><code class="nohighlight hljs">&lt;div&gt;
+&lt;/div&gt;</code></pre><h2 id="Escaping"><a class="docs-heading-anchor" href="#Escaping">Escaping</a><a id="Escaping-1"></a><a class="docs-heading-anchor-permalink" href="#Escaping" title="Permalink"></a></h2><p>It is important to apply HTML escaping in order to prevent XSS. So, <code>autoescape</code> is set to <code>true</code> by default. If you want to escape manually, you can disable this option, and use <code>e</code> or <code>escape</code> filter into expression blocks:</p><pre><code class="language-html hljs">&lt;div&gt;
     {{ value |&gt; e }}
-&lt;/div&gt;</code></pre><p>Where <code>value</code> is <code>&lt;script&gt;This is injection attack&lt;/script&gt;</code></p><pre><code class="nohighlight hljs">&lt;div&gt;
+&lt;/div&gt;</code></pre><p>Where <code>value</code> is <code>&lt;script&gt;This is injection attack&lt;/script&gt;</code></p><pre><code class="language-html hljs">&lt;div&gt;
     &amp;lt;script&amp;gt;This is injection attack&amp;lt;/script&amp;gt;
 &lt;/div&gt;</code></pre><h2 id="Raw-Text"><a class="docs-heading-anchor" href="#Raw-Text">Raw Text</a><a id="Raw-Text-1"></a><a class="docs-heading-anchor-permalink" href="#Raw-Text" title="Permalink"></a></h2><p>Sometimes it is neccessary to ignore blocks and recognize it raw text. Then, you should use <code>raw</code> block:</p><pre><code class="nohighlight hljs">{% raw %}
 This is test for raw block
@@ -74,7 +74,7 @@ This is test for raw block
 {% endraw %}</code></pre><h2 id="Template-Inheritance"><a class="docs-heading-anchor" href="#Template-Inheritance">Template Inheritance</a><a id="Template-Inheritance-1"></a><a class="docs-heading-anchor-permalink" href="#Template-Inheritance" title="Permalink"></a></h2><h3 id="Include"><a class="docs-heading-anchor" href="#Include">Include</a><a id="Include-1"></a><a class="docs-heading-anchor-permalink" href="#Include" title="Permalink"></a></h3><p>You can include template with <code>{% include &quot;(template filename)&quot; %}</code> code block. This is the tiny example:</p><pre><code class="nohighlight hljs">#=This is the included template(test2.html)=#
 Hello everyone! My name is watasu.</code></pre><pre><code class="nohighlight hljs">#=This is the main template=#
 {% include &quot;test2.html&quot; %}
-Today, I&#39;d like to introduce OteraEngine.jl</code></pre><div class="admonition is-warning"><header class="admonition-header">Template filename have to be enclosed with double quotation mark</header><div class="admonition-body"><p>Template filename have to be like this: <code>&quot;test.html&quot;</code>. Otherwise, parser returns error.</p></div></div><p>This code block is also available inside the <code>{% block %}</code> explained in next section.</p><h3 id="Extends"><a class="docs-heading-anchor" href="#Extends">Extends</a><a id="Extends-1"></a><a class="docs-heading-anchor-permalink" href="#Extends" title="Permalink"></a></h3><p>When you build large web app with OteraEngine, you may want to use &quot;template of template&quot;. This is possible with <code>{% extends %}</code> code block. This code block have to be located at the top of the document, otherwise ignored. This is the example:</p><pre><code class="nohighlight hljs">#=This is the base template(test2.html)=#
+Today, I&#39;d like to introduce OteraEngine.jl</code></pre><div class="admonition is-warning"><header class="admonition-header">Template filename have to be enclosed with double quotation mark</header><div class="admonition-body"><p>Template filename have to be like this: <code>&quot;test.html&quot;</code>. Otherwise, parser returns error.</p></div></div><p>This code block is also available inside the <code>{% block %}</code> explained in next section.</p><h3 id="Extends"><a class="docs-heading-anchor" href="#Extends">Extends</a><a id="Extends-1"></a><a class="docs-heading-anchor-permalink" href="#Extends" title="Permalink"></a></h3><p>When you build large web app with OteraEngine, you may want to use &quot;template of template&quot;. This is possible with <code>{% extends %}</code> code block. This code block have to be located at the top of the document, otherwise ignored. This is the example:</p><pre><code class="language-html hljs">#=This is the base template(test2.html)=#
 &lt;!DOCTYPE html&gt;
 &lt;html&gt;
     &lt;head&gt;
@@ -86,14 +86,14 @@ Today, I&#39;d like to introduce OteraEngine.jl</code></pre><div class="admoniti
             {% endblock %}
         &lt;/div&gt;
     &lt;/body&gt;
-&lt;/html&gt;</code></pre><pre><code class="nohighlight hljs">#=This is the main template=#
+&lt;/html&gt;</code></pre><pre><code class="language-html hljs">#=This is the main template=#
 {% extends &quot;test2.html&quot; %}
 {% block body %}
             &lt;h1&gt;hello&lt;/h1&gt;
             &lt;div&gt;
                 &lt;p&gt;some content here.&lt;/p&gt;
             &lt;/div&gt;
-{% endblock %}</code></pre><pre><code class="nohighlight hljs">#=Output=#
+{% endblock %}</code></pre><pre><code class="language-html hljs">#=Output=#
 &lt;!DOCTYPE html&gt;
 &lt;html&gt;
     &lt;head&gt;
@@ -107,7 +107,28 @@ Today, I&#39;d like to introduce OteraEngine.jl</code></pre><div class="admoniti
             &lt;/div&gt;
         &lt;/div&gt;
     &lt;/body&gt;
-&lt;/html&gt;</code></pre><div class="admonition is-warning"><header class="admonition-header">Template filename have to be enclosed with double quotation mark</header><div class="admonition-body"><p>Template filename have to be like this: <code>&quot;test.html&quot;</code>. Otherwise, parser returns error.</p></div></div><p>If you write <code>{% extends (template filename) %}</code> in main template, parser will use <code>(template filename)</code> as the base template. And, you can write blocks in the main template with <code>{% block (block name) %}</code> and <code>{% endblock %}</code>.</p><h3 id="Block-Inheritance"><a class="docs-heading-anchor" href="#Block-Inheritance">Block Inheritance</a><a id="Block-Inheritance-1"></a><a class="docs-heading-anchor-permalink" href="#Block-Inheritance" title="Permalink"></a></h3><p>Blocks defined in parent(even in ancestors) is inherited with <code>super()</code>:</p><pre><code class="nohighlight hljs"># Grand Parent Template(&quot;grand.html&quot;)
+&lt;/html&gt;</code></pre><div class="admonition is-warning"><header class="admonition-header">Template filename have to be enclosed with double quotation mark</header><div class="admonition-body"><p>Template filename have to be like this: <code>&quot;test.html&quot;</code>. Otherwise, parser returns error.</p></div></div><p>If you write <code>{% extends (template filename) %}</code> in main template, parser will use <code>(template filename)</code> as the base template. And, you can write blocks in the main template with <code>{% block (block name) %}</code> and <code>{% endblock %}</code>. When you build the very complex templates, nested extended templates must be useful.</p><h3 id="Nested-Extens"><a class="docs-heading-anchor" href="#Nested-Extens">Nested Extens</a><a id="Nested-Extens-1"></a><a class="docs-heading-anchor-permalink" href="#Nested-Extens" title="Permalink"></a></h3><p>When you build very complex templates, nested extended templates must be useful. THis is the exmaple:</p><pre><code class="language-html hljs">#nestedextends1.html
+{% extends &quot;nestedextends2.html&quot; %}
+
+{% block content2 %}
+        &lt;p&gt;Hello&lt;/p&gt;
+{% endblock %}</code></pre><pre><code class="language-html hljs">#nestedextends2.html
+{% extends &quot;nestedextends3.html&quot; %}
+
+{% block content %}
+        &lt;h1&gt;Title&lt;/h1&gt;
+        {% block content2 %}{% endblock %}
+{% endblock %}</code></pre><pre><code class="language-html hljs">&lt;!DOCTYPE html&gt;
+&lt;html&gt;
+    &lt;head&gt;
+        &lt;title&gt;Nested Extends Test&lt;/title&gt;
+    &lt;/head&gt;
+    &lt;body&gt;
+        This is the test for nested extends blocks. Here it is:
+        {% block content %}
+        {% endblock %}
+    &lt;/body&gt;
+&lt;/html&gt;</code></pre><p>In this case, <code>nestedextends1.html</code> loads <code>nestedextends2.html</code>, and <code>nestedextends2.html</code> loads <code>nestedextends3.html</code>. There is no limit in the depth of nest.</p><h3 id="Block-Inheritance"><a class="docs-heading-anchor" href="#Block-Inheritance">Block Inheritance</a><a id="Block-Inheritance-1"></a><a class="docs-heading-anchor-permalink" href="#Block-Inheritance" title="Permalink"></a></h3><p>Blocks defined in parent(even in ancestors) is inherited with <code>super()</code>:</p><pre><code class="language-html hljs"># Grand Parent Template(&quot;grand.html&quot;)
 &lt;div&gt;
     {% block body %}
     Hello Grand Parents
@@ -123,7 +144,7 @@ Hello Parent
 {% block body %}
     Hello Child
     {{ super() }}{{ super.super() }}
-{% endblock %}</code></pre><p>The, we get this:</p><pre><code class="nohighlight hljs">&lt;div&gt;
+{% endblock %}</code></pre><p>The, we get this:</p><pre><code class="language-html hljs">&lt;div&gt;
     Hello Child
     Hello Parent
     Hello Grand Parents
@@ -137,7 +158,7 @@ Hello Parent
     Hello {{ i }}
 {% end %}</code></pre><p>you can use variables defined inside of <code>for</code> block.</p><h3 id="Let"><a class="docs-heading-anchor" href="#Let">Let</a><a id="Let-1"></a><a class="docs-heading-anchor-permalink" href="#Let" title="Permalink"></a></h3><p><code>let</code> block creates local variables which has the scope inside of this block:</p><pre><code class="nohighlight hljs">{% let name = &quot;Julia&quot; %}
     Hello {{ name }}
-{% end %}</code></pre><p>This is equal to <code>with</code> block in Jinja2.</p><h3 id="Set"><a class="docs-heading-anchor" href="#Set">Set</a><a id="Set-1"></a><a class="docs-heading-anchor-permalink" href="#Set" title="Permalink"></a></h3><p><code>set</code> block is converted into <code>global (variable) = (value)</code>. So you can use variables in every control blocks(not in expression blocks now).</p><h2 id="Macro"><a class="docs-heading-anchor" href="#Macro">Macro</a><a id="Macro-1"></a><a class="docs-heading-anchor-permalink" href="#Macro" title="Permalink"></a></h2><p>Macro is similar to function in Programming Language. In fact, OteraEngine converts macros into Julia function internally. This is the example:</p><pre><code class="nohighlight hljs">{% macro input(name, value=&quot;&quot;, type=&quot;text&quot;, size=20) %}
+{% end %}</code></pre><p>This is equal to <code>with</code> block in Jinja2.</p><h3 id="Set"><a class="docs-heading-anchor" href="#Set">Set</a><a id="Set-1"></a><a class="docs-heading-anchor-permalink" href="#Set" title="Permalink"></a></h3><p><code>set</code> block is converted into <code>global (variable) = (value)</code>. So you can use variables in every control blocks(not in expression blocks now).</p><h2 id="Macro"><a class="docs-heading-anchor" href="#Macro">Macro</a><a id="Macro-1"></a><a class="docs-heading-anchor-permalink" href="#Macro" title="Permalink"></a></h2><p>Macro is similar to function in Programming Language. In fact, OteraEngine converts macros into Julia function internally. This is the example:</p><pre><code class="language-html hljs">{% macro input(name, value=&quot;&quot;, type=&quot;text&quot;, size=20) %}
     &lt;input type=&quot;{{ type }}&quot; name=&quot;{{ name }}&quot; value=&quot;{{
         value|&gt;e }}&quot; size=&quot;{{ size }}&quot;&gt;
 {% endmacro %}
@@ -147,14 +168,14 @@ Hello Parent
     &lt;body&gt;
         {{ input(&quot;test&quot;) }}
     &lt;/body&gt;
-&lt;/html&gt;</code></pre><p>You should note that macro emits extra white space when you don&#39;t use any white space control options. So, it is strongly recommended to use <code>autospace</code> when you use macros.</p><h2 id="Import-Macros"><a class="docs-heading-anchor" href="#Import-Macros">Import Macros</a><a id="Import-Macros-1"></a><a class="docs-heading-anchor-permalink" href="#Import-Macros" title="Permalink"></a></h2><p>Sometimes you need the macro defined the different template. In such case, you should use <code>import</code> and <code>from</code>. <code>import</code> adds an external template into the namespace with alias like this:</p><pre><code class="nohighlight hljs">{% import &quot;import2.html&quot; as base %}
+&lt;/html&gt;</code></pre><p>You should note that macro emits extra white space when you don&#39;t use any white space control options. So, it is strongly recommended to use <code>autospace</code> when you use macros.</p><h2 id="Import-Macros"><a class="docs-heading-anchor" href="#Import-Macros">Import Macros</a><a id="Import-Macros-1"></a><a class="docs-heading-anchor-permalink" href="#Import-Macros" title="Permalink"></a></h2><p>Sometimes you need the macro defined the different template. In such case, you should use <code>import</code> and <code>from</code>. <code>import</code> adds an external template into the namespace with alias like this:</p><pre><code class="language-html hljs">{% import &quot;import2.html&quot; as base %}
 
 &lt;html&gt;
     &lt;head&gt;&lt;title&gt;MyPage&lt;/title&gt;&lt;/head&gt;
     &lt;body&gt;
         {{ base.input(&quot;test&quot;) }}
     &lt;/body&gt;
-&lt;/html&gt;</code></pre><p>This template generate the same output as the previous example.</p><p><code>from</code> is more flexible. You can directly add external macros into the namespace, and you can give it a different name or just add it as is.</p><pre><code class="nohighlight hljs">{% from &quot;from2.html&quot; import input, title as alias %}
+&lt;/html&gt;</code></pre><p>This template generate the same output as the previous example.</p><p><code>from</code> is more flexible. You can directly add external macros into the namespace, and you can give it a different name or just add it as is.</p><pre><code class="language-html hljs">{% from &quot;from2.html&quot; import input, title as alias %}
 
 &lt;html&gt;
     &lt;head&gt;&lt;title&gt;MyPage&lt;/title&gt;&lt;/head&gt;
@@ -174,4 +195,4 @@ Hello Parent
 &quot;lstrip_blocks&quot; =&gt; false,
 &quot;trim_blocks&quot; =&gt; false,
 &quot;autoescape&quot; =&gt; true,
-&quot;dir&quot; =&gt; pwd()</code></pre><p>configurations can be loaded from TOML file. You don&#39;t have to specify all the configurations(The rest uses the default settings).</p><div class="admonition is-warning"><header class="admonition-header">Same character settings</header><div class="admonition-body"><p>If you set the same characters into the different items, tokenizer won&#39;t be able to work. Even if they matches partially, tokenizer may not work. Moreover, <code>ParserConfig</code> checks the match between <code>~_start</code> and <code>~_end</code>, but others not.</p></div></div></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../">« Home</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.7.0 on <span class="colophon-date" title="Friday 4 October 2024 14:39">Friday 4 October 2024</span>. Using Julia version 1.10.5.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+&quot;dir&quot; =&gt; pwd()</code></pre><p>configurations can be loaded from TOML file. You don&#39;t have to specify all the configurations(The rest uses the default settings).</p><div class="admonition is-warning"><header class="admonition-header">Same character settings</header><div class="admonition-body"><p>If you set the same characters into the different items, tokenizer won&#39;t be able to work. Even if they matches partially, tokenizer may not work. Moreover, <code>ParserConfig</code> checks the match between <code>~_start</code> and <code>~_end</code>, but others not.</p></div></div></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../">« Home</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.7.0 on <span class="colophon-date" title="Friday 4 October 2024 15:06">Friday 4 October 2024</span>. Using Julia version 1.10.5.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
