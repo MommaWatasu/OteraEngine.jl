@@ -12,7 +12,7 @@
 This is the template engine for JuliaLang.
 features
 - Very very small! There are no dependency.
-- Jinja-like syntax. Easy to use usage.
+- Jinja-like syntax. Easy to use.
 
 ## Installation
 

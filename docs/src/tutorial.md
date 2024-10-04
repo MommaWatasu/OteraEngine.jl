@@ -34,7 +34,7 @@ Julia block makes you possible to write Julia code directly into templates.
 
 ## Variables
 As mentioned in previous section, you can embed variables with Expression block. And you can define variables in both templates and julia. Here is an example:
-```
+```html
 <div>
     {% let name = "Julia" %}
         Hello {{name}}
@@ -72,7 +72,7 @@ Then you can use `repeat` in you template.
 ## Julia Code Block
 You can write Julia deirectly in templates with this block. Variables are shared between Julia Code Block and Tmp Code Block, and variables defined in `init` are also available. And arbitary type(for example DataFrame) are available in this block.
 This is the example:
-```
+```html
 <div>
     {<
         a = 10
@@ -82,7 +82,7 @@ This is the example:
 </div>
 ```
 Output:
-```
+```html
 <div>
     14.0
 </div>
@@ -107,7 +107,7 @@ Template:
 {% end %}
 ```
 Without `lstrip blocks`:
-```
+```html
 <div>
 
         Hello 1
@@ -119,7 +119,7 @@ Without `lstrip blocks`:
 </div>
 ```
 With `lstrip_blocks`(you can't see the difference. please try selecting the text):
-```
+```html
 <div>
 
         Hello 1
@@ -132,7 +132,7 @@ With `lstrip_blocks`(you can't see the difference. please try selecting the text
 ```
 If `trim_blocks` is enabled, the (only) first newline after the block is removed.
 Without `trim_blocks`(`lstrip_blocks` is disabled):
-```
+```html
 <div>
             Hello 1
             Hello 2
@@ -140,7 +140,7 @@ Without `trim_blocks`(`lstrip_blocks` is disabled):
     </div>
 ```
 With `trim_blocks` and `lstrip_blocks`:
-```
+```html
 <div>
         Hello 1
         Hello 2
@@ -152,7 +152,7 @@ But, sometimes these options aren't perfect(like macro), and it's annoying to se
 And other way to control white spaces is to add `+` and `-` to the both ends of blocks. This works partially even if space control options are enabled.
 `+` means that the block does nothing about space. And `-` means that the block removes all the spaces.
 This is useful when you want to put items in a row with `for` block:
-```
+```html
 <div>
     {% for i in 1 : 10 -%}
     {{i}}
@@ -160,7 +160,7 @@ This is useful when you want to put items in a row with `for` block:
 </div>
 ```
 Output:
-```
+```html
 <div>
     12345678910
 </div>
@@ -169,13 +169,13 @@ Output:
 ## Escaping
 It is important to apply HTML escaping in order to prevent XSS. So, `autoescape` is set to `true` by default.
 If you want to escape manually, you can disable this option, and use `e` or `escape` filter into expression blocks:
-```
+```html
 <div>
     {{ value |> e }}
 </div>
 ```
 Where `value` is `<script>This is injection attack</script>`
-```
+```html
 <div>
     &lt;script&gt;This is injection attack&lt;/script&gt;
 </div>
@@ -211,7 +211,7 @@ This code block is also available inside the `{% block %}` explained in next sec
 ### Extends
 When you build large web app with OteraEngine, you may want to use "template of template". This is possible with `{% extends %}` code block.
 This code block have to be located at the top of the document, otherwise ignored. This is the example:
-```
+```html
 #=This is the base template(test2.html)=#
 <!DOCTYPE html>
 <html>
@@ -226,7 +226,7 @@ This code block have to be located at the top of the document, otherwise ignored
     </body>
 </html>
 ```
-```
+```html
 #=This is the main template=#
 {% extends "test2.html" %}
 {% block body %}
@@ -236,7 +236,7 @@ This code block have to be located at the top of the document, otherwise ignored
             </div>
 {% endblock %}
 ```
-```
+```html
 #=Output=#
 <!DOCTYPE html>
 <html>
@@ -259,10 +259,45 @@ This code block have to be located at the top of the document, otherwise ignored
 
 If you write `{% extends (template filename) %}` in main template, parser will use `(template filename)` as the base template.
 And, you can write blocks in the main template with `{% block (block name) %}` and `{% endblock %}`.
+When you build the very complex templates, nested extended templates must be useful.
+
+### Nested Extens
+When you build very complex templates, nested extended templates must be useful. THis is the exmaple:
+```html
+#nestedextends1.html
+{% extends "nestedextends2.html" %}
+
+{% block content2 %}
+        <p>Hello</p>
+{% endblock %}
+```
+```html
+#nestedextends2.html
+{% extends "nestedextends3.html" %}
+
+{% block content %}
+        <h1>Title</h1>
+        {% block content2 %}{% endblock %}
+{% endblock %}
+```
+```html
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Nested Extends Test</title>
+    </head>
+    <body>
+        This is the test for nested extends blocks. Here it is:
+        {% block content %}
+        {% endblock %}
+    </body>
+</html>
+```
+In this case, `nestedextends1.html` loads `nestedextends2.html`, and `nestedextends2.html` loads `nestedextends3.html`. There is no limit in the depth of nest.
 
 ### Block Inheritance
 Blocks defined in parent(even in ancestors) is inherited with `super()`:
-```
+```html
 # Grand Parent Template("grand.html")
 <div>
     {% block body %}
@@ -282,7 +317,7 @@ Hello Parent
 {% endblock %}
 ```
 The, we get this:
-```
+```html
 <div>
     Hello Child
     Hello Parent
@@ -331,7 +366,7 @@ This is equal to `with` block in Jinja2.
 ## Macro
 Macro is similar to function in Programming Language. In fact, OteraEngine converts macros into Julia function internally.
 This is the example:
-```
+```html
 {% macro input(name, value="", type="text", size=20) %}
     <input type="{{ type }}" name="{{ name }}" value="{{
         value|>e }}" size="{{ size }}">
@@ -349,7 +384,7 @@ You should note that macro emits extra white space when you don't use any white 
 ## Import Macros
 Sometimes you need the macro defined the different template. In such case, you should use `import` and `from`.
 `import` adds an external template into the namespace with alias like this:
-```
+```html
 {% import "import2.html" as base %}
 
 <html>
@@ -362,7 +397,7 @@ Sometimes you need the macro defined the different template. In such case, you s
 This template generate the same output as the previous example.
 
 `from` is more flexible. You can directly add external macros into the namespace, and you can give it a different name or just add it as is.
-```
+```html
 {% from "from2.html" import input, title as alias %}
 
 <html>
