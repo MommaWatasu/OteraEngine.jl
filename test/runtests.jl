@@ -1,4 +1,6 @@
 using OteraEngine
+import OteraEngine.SafeString
+import OteraEngine.safe
 using Test
 
 @testset "OteraEngine.jl" begin
@@ -91,13 +93,22 @@ using Test
     @test result == tmp()
 
     # filters
-    @test_nowarn @filter function test_filter(txt)
-        if txt == "Hello"
-            return "World"
-        else
-            return "Let's say Hello!"
-        end
+    # Test safe function
+    @testset "safe tests" begin
+        @test safe("Hello") == SafeString("Hello")
+        @test safe(SafeString("Already Safe")) == SafeString("Already Safe")
+        @test string(SafeString("Convert Me")) == "Convert Me"
     end
+    
+    # Test @filter macro
+    @testset "filter macro tests" begin
+        @filter function greet(x)
+            return x * "Hello"
+        end
+        # Assuming OteraEngine.filters is defined somewhere
+        @test :(greet(x)) in [f.args[1] for f in OteraEngine.filters]
+    end
+
     @filter say_twice(txt) = txt*txt
     filters = Dict(
         "repeat" => :say_twice

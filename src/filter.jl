@@ -14,7 +14,7 @@ function safe(str::String)
     return SafeString(str)
 end
 
-function safe(str::SafeString   )
+function safe(str::SafeString)
     return str
 end
 
