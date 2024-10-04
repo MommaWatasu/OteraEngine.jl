@@ -1,9 +1,11 @@
 using OteraEngine
 import OteraEngine.SafeString
 import OteraEngine.safe
+import OteraEngine.ParserError
 using Test
 
 @testset "OteraEngine.jl" begin
+    @test_throws ParserError throw(ParserError("Test"))
     result = ""
     # When initializing variables directly
     @test_nowarn Template("jl_block1.html")

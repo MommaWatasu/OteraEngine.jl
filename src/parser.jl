@@ -279,7 +279,7 @@ function parse_meta(tokens::Vector{Token}, filters::Dict{String, Symbol}, config
                     file_name = strip(code[8:end])
                     if file_name[1] == file_name[end] == '\"'
                         open(config.dir*"/"*file_name[2:end-1], "r") do f
-                            _, external_tokens, external_macros = parse_meta(read(f, String), filters, config, include=true)
+                            external_tokens, external_macros = parse_meta(tokenizer(read(f, String), config), filters, config, include=true)
                             !isempty(external_macros) && throw(ParserError("nesting macros is not allowed"))
                             append!(macro_content, external_tokens)
                         end
