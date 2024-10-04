@@ -16,8 +16,9 @@ end
 
 struct TmpBlock
     name::String
-    contents::Vector{Union{AbstractString, VariableBlock, JLCodeBlock, TmpStatement, TmpBlock, SuperBlock}}
+    contents::Vector{Union{AbstractString, JLCodeBlock, TmpStatement, TmpBlock, VariableBlock, SuperBlock}}
 end
+TmpBlockTypes = Vector{Union{AbstractString, JLCodeBlock, TmpStatement, TmpBlock, VariableBlock, SuperBlock}}
 
 function Base.push!(a::TmpBlock, v::Union{AbstractString, VariableBlock, JLCodeBlock, TmpStatement, SuperBlock})
     push!(a.contents, v)
@@ -32,6 +33,8 @@ function (TB::TmpBlock)(filters::Dict{String, Symbol}, autoescape::Bool)
         elseif isa(content, JLCodeBlock)
             jl_code = replace(content.code, "\n"=>";")
             code *= "txt *= begin;$jl_code;end;"
+        elseif isa(content, TmpBlock)
+            code *= content(filters, autoescape)
         elseif isa(content, VariableBlock)
             if occursin("|>", content.exp)
                 exp = map(strip, split(content.exp, "|>"))
@@ -58,6 +61,7 @@ end
 struct TmpCodeBlock
     contents::Vector{Union{AbstractString, VariableBlock, JLCodeBlock, TmpStatement, TmpBlock}}
 end
+TmpCodeBlockTypes = Vector{Union{AbstractString, VariableBlock, JLCodeBlock, TmpStatement, TmpBlock}}
 
 function (TCB::TmpCodeBlock)(filters::Dict{String, Symbol}, autoescape::Bool)
     code = ""
@@ -137,19 +141,45 @@ function inherite_blocks(src::Vector{TmpBlock}, dst::Vector{TmpBlock})
 end
 
 function apply_inheritance(elements::CodeBlockVector, blocks::Vector{TmpBlock})
-    for i in eachindex(elements)
-        if typeof(elements[i]) == TmpCodeBlock
-            idxs = findall(x->typeof(x)==TmpBlock, elements[i].contents)
+    for element in elements
+        if isa(element, TmpCodeBlock)
+            idxs = findall(x->typeof(x)==TmpBlock, element.contents)
             length(idxs) == 0 && continue
             for j in idxs
-                idx = findfirst(x->x.name==elements[i].contents[j].name, blocks)
+                idx = findfirst(x->x.name==element.contents[j].name, blocks)
                 if idx === nothing
-                    elements[i].contents[j] = ""
+                    element.contents[j] = ""
                 else
-                    elements[i].contents[j] = blocks[idx]
+                    element.contents[j] = blocks[idx]
                 end
+            end
+            if !isempty(findall(x -> isa(x, TmpBlock), element.contents))
+                apply_inheritance(element.contents, blocks)
             end
         end
     end
     return elements
+end
+
+for elements_types in [TmpCodeBlockTypes, TmpBlockTypes]
+    eval(:(function apply_inheritance(elements::$(elements_types), blocks::Vector{TmpBlock})
+        for element in elements
+            if isa(element, TmpBlock)
+                idxs = findall(x->typeof(x)==TmpBlock, element.contents)
+                length(idxs) == 0 && continue
+                for j in idxs
+                    idx = findfirst(x->x.name==element.contents[j].name, blocks)
+                    if idx === nothing
+                        element.contents[j] = ""
+                    else
+                        element.contents[j] = blocks[idx]
+                    end
+                end
+                if !isempty(findall(x -> isa(x, TmpBlock), element.contents))
+                    apply_inheritance(element.contents, blocks)
+                end
+            end
+        end
+        return elements
+    end))
 end
