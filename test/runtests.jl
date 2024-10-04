@@ -61,7 +61,7 @@ using Test
 
     # check nested extends block
     tmp = Template("nestedextends1.html", config=Dict("lstrip_blocks"=>true, "trim_blocks"=>true))
-    open("extends4.html", "r") do f
+    open("nestedextends4.html", "r") do f
         result = read(f, String)
     end
     @test result == tmp()
