@@ -422,11 +422,13 @@ function parse_meta(tokens::Vector{Token}, filters::Dict{String, Symbol}, config
             elseif operator == "extends"
                 include && throw(ParserError("invalid block: `extends` must be at the top of templates"))
                 file_name = strip(code[8:end])
+                println("start processing: ", file_name)
                 if file_name[1] == file_name[end] == '\"'
                     super = Template(config.dir*"/"*file_name[2:end-1], config = config2dict(config))
                 else
                     throw(ParserError("failed to read $file_name: file name have to be enclosed in double quotation marks"))
                 end
+                println("finish processing: ", file_name)
             else
                 append!(out_tokens, [:control_start, tokens[i], :control_end])
             end
@@ -505,6 +507,8 @@ function parse_meta(tokens::Vector{Token}, filters::Dict{String, Symbol}, config
 end
 
 function parse_template(txt::String, filters::Dict{String, Symbol}, config::ParserConfig)
+    println(txt)
+    println("=================================")
     # tokenize
     tokens = tokenizer(txt, config)
     # process meta information
@@ -524,7 +528,9 @@ function parse_template(txt::String, filters::Dict{String, Symbol}, config::Pars
     
     i = 1
     code = ""
+    println(tokens)
     while i <= length(tokens)
+        in_block_depth > 0 && println("in_block_depth > 0: ", i, tokens[i])
         if tokens[i] == :control_start
             i += 1
             code = strip(tokens[i])
@@ -534,22 +540,27 @@ function parse_template(txt::String, filters::Dict{String, Symbol}, config::Pars
             if operator == "endblock"
                 if in_block_depth == 0
                     throw(ParserError("invalid end of block: `endblock` statement without `block` statement"))
-                elseif in_block_depth != 1
-                    throw(ParserError("invalid end of block: this block has the statement which is not closed"))
                 end
                 in_block_depth -= 1
-                push!(blocks, code_block[end])
-                if depth == 0
-                    push!(elements, TmpCodeBlock(code_block))
-                    code_block = SubCodeBlockVector(undef, 0)
+                println("in_block_depth: ", in_block_depth)
+                println("blocks: ", blocks)
+                println("code_block: ", code_block)
+                if in_block_depth == 0
+                    if depth == 0
+                        push!(blocks, code_block[end])
+                        code_block = SubCodeBlockVector(undef, 0)
+                    else
+                        push!(blocks, code_block[end][end])
+                    end
                 end
                 
             elseif operator == "block"
                 if in_block_depth != 0
-                    throw(ParserError("invalid block: nested block is invalid"))
+                    push!(code_block[end].contents, TmpBlock(contents[2], Vector()))
+                else
+                    push!(code_block, TmpBlock(contents[2], Vector()))
                 end
                 in_block_depth += 1
-                push!(code_block, TmpBlock(contents[2], Vector()))
                 
             elseif operator == "set"
                 if in_block_depth != 0

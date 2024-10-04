@@ -16,7 +16,7 @@ end
 
 struct TmpBlock
     name::String
-    contents::Vector{Union{AbstractString, VariableBlock, JLCodeBlock, TmpStatement, SuperBlock}}
+    contents::Vector{Union{AbstractString, VariableBlock, JLCodeBlock, TmpStatement, TmpBlock, SuperBlock}}
 end
 
 function Base.push!(a::TmpBlock, v::Union{AbstractString, VariableBlock, JLCodeBlock, TmpStatement, SuperBlock})
