@@ -79,6 +79,14 @@ function get_operator(code::String)
     return code
 end
 
+function push_code_block!(code_block, content, n)
+    element = code_block
+    for _ in 1:n
+        element = element[end]
+    end
+    push!(element.contents, content)
+end
+
 # if nl is true
 # newline is also counted
 function chop_space(s::AbstractString, nl::Bool, tail::Bool)
@@ -422,13 +430,11 @@ function parse_meta(tokens::Vector{Token}, filters::Dict{String, Symbol}, config
             elseif operator == "extends"
                 include && throw(ParserError("invalid block: `extends` must be at the top of templates"))
                 file_name = strip(code[8:end])
-                println("start processing: ", file_name)
                 if file_name[1] == file_name[end] == '\"'
                     super = Template(config.dir*"/"*file_name[2:end-1], config = config2dict(config))
                 else
                     throw(ParserError("failed to read $file_name: file name have to be enclosed in double quotation marks"))
                 end
-                println("finish processing: ", file_name)
             else
                 append!(out_tokens, [:control_start, tokens[i], :control_end])
             end
@@ -507,8 +513,6 @@ function parse_meta(tokens::Vector{Token}, filters::Dict{String, Symbol}, config
 end
 
 function parse_template(txt::String, filters::Dict{String, Symbol}, config::ParserConfig)
-    println(txt)
-    println("=================================")
     # tokenize
     tokens = tokenizer(txt, config)
     # process meta information
@@ -528,9 +532,7 @@ function parse_template(txt::String, filters::Dict{String, Symbol}, config::Pars
     
     i = 1
     code = ""
-    println(tokens)
     while i <= length(tokens)
-        in_block_depth > 0 && println("in_block_depth > 0: ", i, tokens[i])
         if tokens[i] == :control_start
             i += 1
             code = strip(tokens[i])
@@ -542,29 +544,31 @@ function parse_template(txt::String, filters::Dict{String, Symbol}, config::Pars
                     throw(ParserError("invalid end of block: `endblock` statement without `block` statement"))
                 end
                 in_block_depth -= 1
-                println("in_block_depth: ", in_block_depth)
-                println("blocks: ", blocks)
-                println("code_block: ", code_block)
                 if in_block_depth == 0
                     if depth == 0
+                        push!(elements, TmpCodeBlock(code_block))
                         push!(blocks, code_block[end])
                         code_block = SubCodeBlockVector(undef, 0)
                     else
-                        push!(blocks, code_block[end][end])
+                        element = code_block
+                        for _ in 1:n
+                            element = element[end]
+                        end
+                        push!(blocks, element)
                     end
                 end
                 
             elseif operator == "block"
-                if in_block_depth != 0
-                    push!(code_block[end].contents, TmpBlock(contents[2], Vector()))
-                else
+                if in_block_depth == 0
                     push!(code_block, TmpBlock(contents[2], Vector()))
+                else
+                    push_code_block!(code_block, TmpBlock(contents[2], Vector()), in_block_depth)
                 end
                 in_block_depth += 1
                 
             elseif operator == "set"
                 if in_block_depth != 0
-                    push!(code_block[end], TmpStatement(code))
+                    push_code_block!(code_block, TmpStatement(code), in_block_depth)
                 elseif depth == 0
                     push!(elements, TmpCodeBlock([TmpStatement(code[4:end])]))
                 else
@@ -575,9 +579,7 @@ function parse_template(txt::String, filters::Dict{String, Symbol}, config::Pars
                 if depth == 0 && in_block_depth == 0
                     throw(ParserError("`end` is found at block depth 0"))
                 elseif in_block_depth != 0
-                    in_block_depth -= 1
-                    in_block_depth == 0 && throw(ParserError("invalid `end` is found: this `end` should be `endblock`"))
-                    push!(code_block[end], TmpStatement("end"))
+                    push_code_block!(code_block, TmpStatement("end"), in_block_depth)
                 else
                     depth -= 1
                     push!(code_block, TmpStatement("end"))
@@ -592,10 +594,7 @@ function parse_template(txt::String, filters::Dict{String, Symbol}, config::Pars
                     throw(ParserError("this block is invalid: $code"))
                 end
                 if in_block_depth != 0
-                    if operator in ["for", "if", "let"]
-                        in_block_depth += 1
-                    end
-                    push!(code_block[end], TmpStatement(code))
+                    push_code_block!(code_block, TmpStatement(code), in_block_depth)
                 else
                     if operator in ["for", "if", "let"]
                         depth += 1
@@ -613,7 +612,7 @@ function parse_template(txt::String, filters::Dict{String, Symbol}, config::Pars
 
             exp = (occursin(r"\(.*?\)", code)) ? SuperBlock(length(split(code, "."))) : VariableBlock(code)
             if in_block_depth != 0
-                push!(code_block[end], exp)
+                push_code_block!(code_block, exp, in_block_depth)
             elseif depth == 0
                 push!(elements, exp)
             else
@@ -626,7 +625,7 @@ function parse_template(txt::String, filters::Dict{String, Symbol}, config::Pars
             i += 1
             code = tokens[i]
             if in_block_depth != 0
-                push!(code_block[end], JLCodeBlock(code))
+                push_code_block!(code_block, JLCodeBlock(code), in_block_depth)
             elseif depth == 0
                 push!(elements, JLCodeBlock(code))
             else
@@ -637,7 +636,7 @@ function parse_template(txt::String, filters::Dict{String, Symbol}, config::Pars
             
         elseif typeof(tokens[i]) <: AbstractString
             if in_block_depth != 0
-                push!(code_block[end], tokens[i])
+                push_code_block!(code_block, tokens[i], in_block_depth)
             elseif depth == 0
                 push!(elements, tokens[i])
             else
