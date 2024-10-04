@@ -262,7 +262,7 @@ And, you can write blocks in the main template with `{% block (block name) %}` a
 When you build the very complex templates, nested extended templates must be useful.
 
 ### Nested Extens
-When you build very complex templates, nested extended templates must be useful. THis is the exmaple:
+When you build very complex templates, nested extended templates must be useful. This is the exmaple:
 ```html
 #nestedextends1.html
 {% extends "nestedextends2.html" %}
@@ -281,6 +281,7 @@ When you build very complex templates, nested extended templates must be useful.
 {% endblock %}
 ```
 ```html
+#nestedextends3.html
 <!DOCTYPE html>
 <html>
     <head>
@@ -290,6 +291,20 @@ When you build very complex templates, nested extended templates must be useful.
         This is the test for nested extends blocks. Here it is:
         {% block content %}
         {% endblock %}
+    </body>
+</html>
+```
+```html
+#Output
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Nested Extends Test</title>
+    </head>
+    <body>
+        This is the test for nested extends blocks. Here it is:
+        <h1>Title</h1>
+        <p>Hello</p>
     </body>
 </html>
 ```
