@@ -59,6 +59,13 @@ using Test
     end
     @test result == tmp()
 
+    # check nested extends block
+    tmp = Template("nestedextends1.html", config=Dict("lstrip_blocks"=>true, "trim_blocks"=>true))
+    open("extends4.html", "r") do f
+        result = read(f, String)
+    end
+    @test result == tmp()
+
     # check Julia block inside inherited block
     tmp = Template("super4.html", config=Dict("lstrip_blocks"=>true, "trim_blocks"=>true))
     @test occursin("Hello from Julia", tmp())
