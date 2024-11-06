@@ -90,7 +90,7 @@ function (TCB::TmpCodeBlock)(filters::Dict{String, Symbol}, autoescape::Bool)
                 end
             end
         elseif typeof(content) <: AbstractString
-            code *= "txt *= \"$content\";"
+            code *= "txt *= \"$(replace(content, "\""=>"\\\""))\";"
         end
     end
     expr = Meta.parse(code)
