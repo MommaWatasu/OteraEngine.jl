@@ -96,8 +96,8 @@ function build_config(dir::String, config_path::String, config::Dict{String, K})
         "comment_block_start" => "{#",
         "comment_block_end" => "#}",
         "autospace" => true,
-        "lstrip_blocks" => false,
-        "trim_blocks" => false,
+        "lstrip_blocks" => true,
+        "trim_blocks" => true,
         "autoescape" => true,
         "dir" => dir
     )
