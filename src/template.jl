@@ -95,7 +95,7 @@ function build_config(dir::String, config_path::String, config::Dict{String, K})
         "jl_block_end" => ">}",
         "comment_block_start" => "{#",
         "comment_block_end" => "#}",
-        "autospace" => false,
+        "autospace" => true,
         "lstrip_blocks" => false,
         "trim_blocks" => false,
         "autoescape" => true,
