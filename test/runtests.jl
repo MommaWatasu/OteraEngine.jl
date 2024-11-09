@@ -29,66 +29,66 @@ using Test
     @test 0 <= parse(Int, m[:value]) <= 100
     
     # check tmp codes work properly
-    tmp = Template("tmp_block1.html", config=Dict("lstrip_blocks"=>true, "trim_blocks"=>true))
+    tmp = Template("tmp_block1.html")
     open("tmp_block2.html", "r") do f
         result = read(f, String)
     end
     @test result == tmp()
 
     # check include block
-    tmp = Template("include1.html", config=Dict("lstrip_blocks"=>true, "trim_blocks"=>true))
+    tmp = Template("include1.html")
     open("include3.html", "r") do f
         result = read(f, String)
     end
     @test result == tmp()
 
     # check extends block
-    tmp = Template("extends1.html", config=Dict("lstrip_blocks"=>true, "trim_blocks"=>true))
+    tmp = Template("extends1.html")
     open("extends3.html", "r") do f
         result = read(f, String)
     end
     @test result == tmp()
 
     # check empty extends block
-    tmp = Template("extendsempty1.html", config=Dict("lstrip_blocks"=>true, "trim_blocks"=>true))
+    tmp = Template("extendsempty1.html")
     open("extendsempty2.html", "r") do f
         result = read(f, String)
     end
     @test result == tmp()
 
     # check super block
-    tmp = Template("super1.html", config=Dict("lstrip_blocks"=>true, "trim_blocks"=>true))
+    tmp = Template("super1.html")
     open("super3.html", "r") do f
         result = read(f, String)
     end
     @test result == tmp()
 
     # check nested extends block
-    tmp = Template("nestedextends1.html", config=Dict("lstrip_blocks"=>true, "trim_blocks"=>true))
+    tmp = Template("nestedextends1.html")
     open("nestedextends4.html", "r") do f
         result = read(f, String)
     end
     @test result == tmp()
 
     # check Julia block inside inherited block
-    tmp = Template("super4.html", config=Dict("lstrip_blocks"=>true, "trim_blocks"=>true))
+    tmp = Template("super4.html")
     @test occursin("Hello from Julia", tmp())
 
     # check TmpBlock
-    tmp = Template("block1.html", config=Dict("lstrip_blocks"=>true, "trim_blocks"=>true))
+    tmp = Template("block1.html")
     open("block2.html", "r") do f
         result = read(f, String)
     end
     @test result == tmp(init=Dict("name"=>"watasu", "age"=>15))
 
     # check if `dir` option is working
-    tmp = Template("wd_test/dir1.html", config=Dict("lstrip_blocks"=>true, "trim_blocks"=>true))
+    tmp = Template("wd_test/dir1.html")
     open("wd_test/dir3.html", "r") do f
         result = read(f, String)
     end
     @test result == tmp()
     
-    tmp = Template("wd_test/dir1.html", config = Dict("dir"=>"wd_test", "lstrip_blocks"=>true, "trim_blocks"=>true))
+    tmp = Template("wd_test/dir1.html", config = Dict("dir"=>"wd_test"))
     open("wd_test/dir3.html", "r") do f
         result = read(f, String)
     end
@@ -122,17 +122,17 @@ using Test
     @test result == tmp(init=Dict("title"=>"upper case", "greet"=>"Hello"))
 
     # macro
-    tmp = Template("macro1.html", config=Dict("autospace"=>true, "trim_blocks"=>true, "lstrip_blocks"=>true))
+    tmp = Template("macro1.html")
     open("macro2.html", "r") do f
         result = read(f, String)
     end
     @test result == tmp()
 
     # check import block
-    tmp = Template("import1.html", config=Dict("lstrip_blocks"=>true, "trim_blocks"=>true, "autospace"=>true))
+    tmp = Template("import1.html")
     @test result == tmp()
 
-    tmp = Template("from1.html", config=Dict("lstrip_blocks"=>true, "trim_blocks"=>true, "autospace"=>true))
+    tmp = Template("from1.html")
     open("from3.html", "r") do f
         result = read(f, String)
     end
@@ -141,12 +141,12 @@ using Test
     # autospace
     test_logger = TestLogger();
     Base.with_logger(test_logger) do
-        Template("macro1.html", config=Dict("autospace"=>true, "lstrip_blocks"=>true))
-        Template("macro1.html", config=Dict("autospace"=>true, "trim_blocks"=>true))
+        Template("macro1.html", config = Dict("trim_blocks"=>false))
+        Template("macro1.html", config = Dict("lstrip_blocks"=>false))
     end
     @test test_logger.logs[1].message == "trim_blocks is ignored since autospace is enabled"
     @test test_logger.logs[2].message == "lstrip_blocks is ignored since autospace is enabled"
-    tmp = Template("macro1.html", config=Dict("autospace"=>true, "lstrip_blocks"=>true, "trim_blocks"=>true))
+    tmp = Template("macro1.html")
     open("autospace.html", "r") do f
         result = read(f, String)
     end
@@ -166,14 +166,14 @@ using Test
     end
     @test result == tmp(init=Dict("attack"=>"<script>This is injection attack</script>"))
 
-    tmp = Template("space_control1.html")
+    tmp = Template("space_control1.html", config=Dict("autospace"=>false, "lstrip_blocks"=>false, "trim_blocks"=>false))
     open("space_control2.html", "r") do f
         result = read(f, String)
     end
     @test result == tmp()
 
     # test for character code
-    tmp = Template("char_code1.html")
+    tmp = Template("char_code1.html", config=Dict("autospace"=>false, "lstrip_blocks"=>false, "trim_blocks"=>false))
     open("char_code2.html", "r") do f
         result = read(f, String)
     end
