@@ -121,7 +121,7 @@ function (Tmp::Template)(; init::Dict{String, T}=Dict{String, Any}()) where {T}
     for filter in filters
         eval(filter)
     end
-    eval(build_render(Tmp.elements, init, Tmp.filters, Tmp.config.autoescape))
+    template_render = build_render(Tmp.elements, init, Tmp.filters, Tmp.config.autoescape)
     try
         return string(lstrip(Base.invokelatest(template_render, values(init)...)))
     catch e
@@ -139,7 +139,7 @@ function (Tmp::Template)(init::Dict{String, T}, blocks::Vector{TmpBlock}) where 
     for filter in filters
         eval(filter)
     end
-    eval(build_render(elements, init, Tmp.filters, Tmp.config.autoescape))
+    template_render = build_render(elements, init, Tmp.filters, Tmp.config.autoescape)
     try
         return string(lstrip(Base.invokelatest(template_render, values(init)...)))
     catch e
@@ -187,5 +187,7 @@ function build_render(elements::CodeBlockVector, init::Dict{String, T}, filters:
         end
     end
     push!(body.args, :(return txt))
-    return Expr(:function, Expr(:call, :template_render, map(Symbol, collect(keys(init)))...), body)
+    return eval(Expr(:->, 
+        Expr(:tuple, map(Symbol, collect(keys(init)))...),
+    body))
 end
