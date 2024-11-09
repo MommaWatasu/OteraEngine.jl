@@ -425,7 +425,7 @@ This template generate the same output as the previous example.
 ```
 
 ## Configurations
-there are six configurations:
+there are 13 configurations:
 - `control_block_start`: the string at the start of tmp code blocks.
 - `control_block_end` : the string at the end of tmp code blocks.
 - `jl_block_start`: the string at the start of jl code blocks.
@@ -449,11 +449,15 @@ and the default configuration is this:
 "jl_block_end" => ">}",
 "comment_block_start" => "{#",
 "comment_block_end" => "#}",
-"autospace" => false,
+"autospace" => true,
 "lstrip_blocks" => false,
 "trim_blocks" => false,
 "autoescape" => true,
 "dir" => pwd()
+```
+These configuration can be changed by using `config` argument of `Template()` like this:
+```
+tmp = Template("config.html", config=Dict("jl_block_start"=>"```code", "jl_block_end"=>"```"))
 ```
 configurations can be loaded from TOML file. You don't have to specify all the configurations(The rest uses the default settings).
 
