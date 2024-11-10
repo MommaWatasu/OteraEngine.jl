@@ -156,7 +156,7 @@ function build_render(elements::CodeBlockVector, init::Dict{String, T}, filters:
         if typeof(e) <: AbstractString
             push!(body.args, :(txt *= $e))
         elseif isa(e, JLCodeBlock)
-            code = Meta.parse(replace(rstrip(e.code), "\n"=>";"))
+            code = Meta.parse(replace(rstrip(e.code), newline=>";"))
             if isa(code, Expr)
                 if code.head == :toplevel
                     code = Expr(:block, code.args...)
