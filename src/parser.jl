@@ -91,13 +91,13 @@ end
 # newline is also counted
 function chop_space(s::AbstractString, config::ParserConfig, nl::Bool, tail::Bool)
     i = 0
-    rs = (tail) ? reverse(s) : s
+    rs, newline = (tail) ? (reverse(s), reverse(config.newline)) : (s, config.newline)
     
     if nl
         while i < length(s)
-            if rs[i+1] == ' ' || rs[i+1:i+1] == config.newline
+            if rs[i+1] == ' ' || rs[i+1:i+1] == newline
                 i += 1
-            elseif rs[i+1:min(nextind(rs, i+1), end)] == config.newline
+            elseif rs[i+1:min(nextind(rs, i+1), end)] == newline
                 i += 2
             else
                 break
