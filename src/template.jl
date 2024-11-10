@@ -154,6 +154,7 @@ function build_render(elements::CodeBlockVector, init::Dict{String, T}, filters:
     end
     for e in elements
         if typeof(e) <: AbstractString
+            println(escape_string(e))
             push!(body.args, :(txt *= $e))
         elseif isa(e, JLCodeBlock)
             code = Meta.parse(replace(rstrip(e.code), newline=>";"))
