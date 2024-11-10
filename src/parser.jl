@@ -100,6 +100,7 @@ function chop_space(s::AbstractString, config::ParserConfig, nl::Bool, tail::Boo
             if rs[i+1] == ' ' || rs[i+1:i+1] == newline
                 i += 1
             elseif rs[i+1:min(nextind(rs, i+1), end)] == newline
+                println("OK")
                 i += 2
             else
                 break
@@ -115,6 +116,7 @@ function chop_space(s::AbstractString, config::ParserConfig, nl::Bool, tail::Boo
         end
     end
     if tail
+        println(chop(s, tail=i))
         return chop(s, tail=i)
     else
         return chop(s, head=i, tail=0)
