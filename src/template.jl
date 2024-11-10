@@ -122,7 +122,7 @@ function (Tmp::Template)(; init::Dict{String, T}=Dict{String, Any}()) where {T}
     for filter in filters
         eval(filter)
     end
-    template_render = build_render(Tmp.elements, init, Tmp.filters, Tmp.config.autoescape)
+    template_render = build_render(Tmp.elements, init, Tmp.filters, Tmp.config.newline, Tmp.config.autoescape)
     try
         return string(lstrip(Base.invokelatest(template_render, values(init)...)))
     catch e
@@ -140,7 +140,7 @@ function (Tmp::Template)(init::Dict{String, T}, blocks::Vector{TmpBlock}) where 
     for filter in filters
         eval(filter)
     end
-    template_render = build_render(elements, init, Tmp.filters, Tmp.config.autoescape)
+    template_render = build_render(elements, init, Tmp.filters, Tmp.config.newline, Tmp.config.autoescape)
     try
         return string(lstrip(Base.invokelatest(template_render, values(init)...)))
     catch e
@@ -148,7 +148,7 @@ function (Tmp::Template)(init::Dict{String, T}, blocks::Vector{TmpBlock}) where 
     end
 end
 
-function build_render(elements::CodeBlockVector, init::Dict{String, T}, filters::Dict{String, Symbol}, autoescape::Bool) where {T}
+function build_render(elements::CodeBlockVector, init::Dict{String, T}, filters::Dict{String, Symbol}, newline::String, autoescape::Bool) where {T}
     body = quote
         txt = ""
     end
@@ -164,9 +164,9 @@ function build_render(elements::CodeBlockVector, init::Dict{String, T}, filters:
             end
             push!(body.args, :(txt *= string(eval($code))))
         elseif isa(e, TmpCodeBlock)
-            push!(body.args, e(filters, autoescape))
+            push!(body.args, e(filters, newline, autoescape))
         elseif isa(e, TmpBlock)
-            push!(body.args, e(filters, autoescape))
+            push!(body.args, e(filters, newline, autoescape))
         elseif isa(e, VariableBlock)
             if occursin("|>", e.exp)
                 exp = map(strip, split(e.exp, "|>"))

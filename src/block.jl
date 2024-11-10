@@ -24,17 +24,17 @@ function Base.push!(a::TmpBlock, v::Union{AbstractString, VariableBlock, JLCodeB
     push!(a.contents, v)
 end
 
-function (TB::TmpBlock)(filters::Dict{String, Symbol}, autoescape::Bool)
+function (TB::TmpBlock)(filters::Dict{String, Symbol}, newline::String, autoescape::Bool)
     code = ""
     for content in TB.contents
         t = typeof(content)
         if isa(content, TmpStatement)
             code *= "$(content.st);"
         elseif isa(content, JLCodeBlock)
-            jl_code = replace(content.code, "\n"=>";")
+            jl_code = replace(content.code, newline=>";")
             code *= "txt *= begin;$jl_code;end;"
         elseif isa(content, TmpBlock)
-            code *= content(filters, autoescape)
+            code *= content(filters, newline, autoescape)
         elseif isa(content, VariableBlock)
             if occursin("|>", content.exp)
                 exp = map(strip, split(content.exp, "|>"))
@@ -63,16 +63,16 @@ struct TmpCodeBlock
 end
 TmpCodeBlockTypes = Vector{Union{AbstractString, VariableBlock, JLCodeBlock, TmpStatement, TmpBlock}}
 
-function (TCB::TmpCodeBlock)(filters::Dict{String, Symbol}, autoescape::Bool)
+function (TCB::TmpCodeBlock)(filters::Dict{String, Symbol}, newline::String, autoescape::Bool)
     code = ""
     for content in TCB.contents
         if isa(content, TmpStatement)
             code *= "$(content.st);"
         elseif isa(content, JLCodeBlock)
-            jl_code = replace(content.code, "\n"=>";")
+            jl_code = replace(content.code, newline=>";")
             code *= "txt *= begin;$jl_code;end"
         elseif isa(content, TmpBlock)
-            code *= content(filters, autoescape)
+            code *= content(filters, newline, autoescape)
         elseif isa(content, VariableBlock)
             if occursin("|>", content.exp)
                 exp = map(strip, split(content.exp, "|>"))
