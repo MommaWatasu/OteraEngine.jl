@@ -95,6 +95,7 @@ function build_config(dir::String, config_path::String, config::Dict{String, K})
         "jl_block_end" => ">}",
         "comment_block_start" => "{#",
         "comment_block_end" => "#}",
+        "newline" => (Sys.islinux()) ? "\n" : "\r\n",
         "autospace" => true,
         "lstrip_blocks" => true,
         "trim_blocks" => true,

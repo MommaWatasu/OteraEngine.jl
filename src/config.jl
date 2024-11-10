@@ -9,6 +9,7 @@ struct ParserConfig
     expression_block::Tuple{String, String}
     jl_block::Tuple{String, String}
     comment_block::Tuple{String, String}
+    newline::String
     autospace::Bool
     lstrip_blocks::Bool
     trim_blocks::Bool
@@ -38,6 +39,7 @@ struct ParserConfig
             (config["expression_block_start"], config["expression_block_end"]),
             (config["jl_block_start"], config["jl_block_end"]),
             (config["comment_block_start"], config["comment_block_end"]),
+            config["newline"],
             config["autospace"],
             config["lstrip_blocks"],
             config["trim_blocks"],
@@ -56,6 +58,7 @@ config2dict(config::ParserConfig) = Dict{String, Union{String, Bool}}(
     "jl_block_end" => config.jl_block[2],
     "comment_block_start" => config.comment_block[1],
     "comment_block_end" => config.comment_block[2],
+    "newline" => config.newline,
     "autospace" => config.autospace,
     "lstrip_blocks" => config.lstrip_blocks,
     "trim_blocks" => config.trim_blocks,
