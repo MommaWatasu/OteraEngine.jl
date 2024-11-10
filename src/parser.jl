@@ -113,7 +113,6 @@ function chop_space(s::AbstractString, config::ParserConfig, nl::Bool, tail::Boo
         end
     end
     if tail
-        println(escape_string(chop(s, tail=i)))
         return chop(s, tail=i)
     else
         return chop(s, head=i, tail=0)
