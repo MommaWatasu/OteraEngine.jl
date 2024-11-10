@@ -95,8 +95,10 @@ function chop_space(s::AbstractString, config::ParserConfig, nl::Bool, tail::Boo
     
     if nl
         while i < length(s)
-            if rs[i+1] == ' ' || rs[i+1:i+1] == config.newline || rs[i+1:min(nextind(rs, i+1), end)] == config.newline
+            if rs[i+1] == ' ' || rs[i+1:i+1] == config.newline
                 i += 1
+            elseif rs[i+1:min(nextind(rs, i+1), end)] == config.newline
+                i += 2
             else
                 break
             end
@@ -181,8 +183,10 @@ function parse_meta(tokens::Vector{Token}, filters::Dict{String, Symbol}, config
                     s = tokens2string(tokens[raw_idx[1]:raw_idx[2]], config)
                     if next_trim == ' '
                         if config.trim_blocks
-                            if s[1:1] == config.newline || s[1:min(nextind(s, 1), end)] == config.newline
+                            if s[1:1] == config.newline
                                 s = s[2:end]
+                            elseif s[1:min(nextind(s, 1), end)] == config.newline
+                                s = s[3:end]
                             end
                         end
                     elseif next_trim == '-'
@@ -325,8 +329,10 @@ function parse_meta(tokens::Vector{Token}, filters::Dict{String, Symbol}, config
                     end
                     if next_trim == ' '
                         if config.trim_blocks
-                            if s[1:1] == config.newline || s[1:min(nextind(s, 1), end)] == config.newline
+                            if s[1:1] == config.newline
                                 s = s[2:end]
+                            elseif s[1:min(nextind(s, 1), end)] == config.newline
+                                s = s[3:end]
                             end
                         end
                     elseif next_trim == '-'
@@ -488,8 +494,10 @@ function parse_meta(tokens::Vector{Token}, filters::Dict{String, Symbol}, config
                 end
                 if next_trim == ' '
                     if config.trim_blocks && tokens[max(i-1, 1)] in [:control_end, :comment_end]
-                        if s[1:1] == config.newline || s[1:min(nextind(s, 1), end)] == config.newline
+                        if s[1:1] == config.newline
                             s = s[2:end]
+                        elseif s[1:min(nextind(s, 1), end)] == config.newline
+                            s = s[3:end]
                         end
                     end
                 elseif next_trim == '-'
