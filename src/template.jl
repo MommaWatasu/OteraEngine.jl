@@ -115,7 +115,6 @@ end
 Base.showerror(io::IO, e::TemplateError) = print(io, "TemplateError: "*e.msg)
 
 function (Tmp::Template)(; init::Dict{String, T}=Dict{String, Any}()) where {T}
-    println(escape_string(string(Tmp.elements)))
     if Tmp.super !== nothing
         return Tmp.super(init, Tmp.blocks)
     end
@@ -155,6 +154,7 @@ function build_render(elements::CodeBlockVector, init::Dict{String, T}, filters:
     end
     for e in elements
         if typeof(e) <: AbstractString
+            println(e)
             push!(body.args, :(txt *= $e))
         elseif isa(e, JLCodeBlock)
             code = Meta.parse(replace(rstrip(e.code), newline=>";"))
