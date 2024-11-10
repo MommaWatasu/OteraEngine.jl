@@ -115,6 +115,7 @@ end
 Base.showerror(io::IO, e::TemplateError) = print(io, "TemplateError: "*e.msg)
 
 function (Tmp::Template)(; init::Dict{String, T}=Dict{String, Any}()) where {T}
+    println(escape_string(string(Tmp.elements)))
     if Tmp.super !== nothing
         return Tmp.super(init, Tmp.blocks)
     end
