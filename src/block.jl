@@ -52,7 +52,7 @@ function (TB::TmpBlock)(filters::Dict{String, Symbol}, newline::String, autoesca
                 end
             end
         elseif typeof(content) <: AbstractString
-            code *= "txt *= \"$(replace(content, "\""=>"\\\""))\";"
+            code *= "txt *= \"$(replace(replace(content, "\""=>"\\\""), "\r"=>"\\r"))\";"
         end
     end
     return code
@@ -90,7 +90,7 @@ function (TCB::TmpCodeBlock)(filters::Dict{String, Symbol}, newline::String, aut
                 end
             end
         elseif typeof(content) <: AbstractString
-            code *= "txt *= \"$(replace(content, "\""=>"\\\""))\";"
+            code *= "txt *= \"$(replace(replace(content, "\""=>"\\\""), "\r"=>"\\r"))\";"
         end
     end
     expr = Meta.parse(code)
