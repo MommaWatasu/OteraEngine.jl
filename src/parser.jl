@@ -92,6 +92,8 @@ end
 function chop_space(s::AbstractString, config::ParserConfig, nl::Bool, tail::Bool)
     i = 0
     rs, newline = (tail) ? (reverse(s), reverse(config.newline)) : (s, config.newline)
+    println(escape_string(s))
+    println(nl, tail)
     
     if nl
         while i < length(s)
