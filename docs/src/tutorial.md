@@ -425,7 +425,7 @@ This template generate the same output as the previous example.
 ```
 
 ## Configurations
-there are 13 configurations:
+there are 14 configurations:
 - `control_block_start`: the string at the start of tmp code blocks.
 - `control_block_end` : the string at the end of tmp code blocks.
 - `jl_block_start`: the string at the start of jl code blocks.
@@ -434,6 +434,7 @@ there are 13 configurations:
 - `expression_block_end` : the string at the end of expression blocks.
 - `comment_block_start`: the string at the start of comment blocks.
 - `comment_block_end`: the string at the end of comment block.
+- `newline`: newline character. This usually depends on OS.
 - `autospace`: the option to control space automatically.
 - `lstrip_blocks`: the option to strip left spaces.
 - `trim_blocks`: the option to remove the first newline after blocks.
@@ -449,6 +450,7 @@ and the default configuration is this:
 "jl_block_end" => ">}",
 "comment_block_start" => "{#",
 "comment_block_end" => "#}",
+"newline" => (Sys.islinux()) ? "\n" : "\r\n",
 "autospace" => true,
 "lstrip_blocks" => false,
 "trim_blocks" => false,
