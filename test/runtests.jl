@@ -105,17 +105,22 @@ using Test
     # Test @filter macro
     @testset "filter macro tests" begin
         @filter function greet(x)
-            return x * "Hello"
+            return "Hello" * x
         end
+        @filter hello(x) = "Hello"*x
+        @filter evening function greet2(x)
+            return "Good evening" * x
+        end
+        @filter morning greet3(x) = "Good morning" * x
         # Assuming OteraEngine.filters is defined somewhere
-        @test :(greet(x)) in [f.args[1] for f in OteraEngine.filters]
+        @test ("greet"=>:greet) in [f for f in OteraEngine.filters_alias]
+        @test ("hello"=>:hello) in [f for f in OteraEngine.filters_alias]
+        @test ("evening"=>:greet2) in [f for f in OteraEngine.filters_alias]
+        @test ("morning"=>:greet3) in [f for f in OteraEngine.filters_alias]
     end
 
-    @filter say_twice(txt) = txt*txt
-    filters = Dict(
-        "repeat" => :say_twice
-    )
-    tmp = Template("filter1.html", filters=filters)
+    @filter repeat say_twice(txt) = txt*txt
+    tmp = Template("filter1.html")
     open("filter2.html", "r") do f
         result = read(f, String)
     end
