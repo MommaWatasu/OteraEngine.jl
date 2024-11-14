@@ -1,3 +1,4 @@
+## rewrite this description
 """
     Template(
         txt::String;
@@ -31,14 +32,12 @@ struct Template
     super::Union{Nothing, Template}
     elements::CodeBlockVector
     blocks::Vector{TmpBlock}
-    filters::Dict{String, Symbol}
     config::ParserConfig
 end
 
 function Template(
         txt::String;
         path::Bool=true,
-        filters::Dict{String, Symbol} = Dict{String, Symbol}(),
         config_path::String="",
         config::Dict{String, K} = Dict{String, Union{String, Bool}}()
     ) where {K}
@@ -60,23 +59,8 @@ function Template(
     end
 
     # build config
-    tmp_filters = define_filters(filters)
     config = build_config(dir, config_path, config)
-    return Template(parse_template(txt, tmp_filters, config)..., tmp_filters, config)
-end
-
-function define_filters(filters::Dict{String, Symbol})
-    filters_dict = Dict{String, Symbol}(
-        "e" => :htmlesc,
-        "escape" => :htmlesc,
-        "upper" => :uppercase,
-        "lower" => :lowercase,
-        "safe" => :safe,
-    )
-    for key in keys(filters)
-        filters_dict[key] = filters[key]
-    end
-    return filters_dict
+    return Template(parse_template(txt, config)..., config)
 end
 
 function build_config(dir::String, config_path::String, config::Dict{String, K}) where {K}
@@ -119,10 +103,11 @@ function (Tmp::Template)(; init::Dict{String, T}=Dict{String, Any}()) where {T}
         return Tmp.super(init, Tmp.blocks)
     end
 
-    for filter in filters
-        eval(filter)
+    for expr in filters_def
+        eval(expr)
     end
-    template_render = build_render(Tmp.elements, init, Tmp.filters, Tmp.config.newline, Tmp.config.autoescape)
+    empty!(filters_def)
+    template_render = build_render(Tmp.elements, init, Tmp.config.newline, Tmp.config.autoescape)
     try
         return string(lstrip(Base.invokelatest(template_render, values(init)...)))
     catch e
@@ -137,10 +122,7 @@ function (Tmp::Template)(init::Dict{String, T}, blocks::Vector{TmpBlock}) where 
     end
     elements = apply_inheritance(Tmp.elements, blocks)
 
-    for filter in filters
-        eval(filter)
-    end
-    template_render = build_render(elements, init, Tmp.filters, Tmp.config.newline, Tmp.config.autoescape)
+    template_render = build_render(elements, init, Tmp.config.newline, Tmp.config.autoescape)
     try
         return string(lstrip(Base.invokelatest(template_render, values(init)...)))
     catch e
@@ -148,7 +130,7 @@ function (Tmp::Template)(init::Dict{String, T}, blocks::Vector{TmpBlock}) where 
     end
 end
 
-function build_render(elements::CodeBlockVector, init::Dict{String, T}, filters::Dict{String, Symbol}, newline::String, autoescape::Bool) where {T}
+function build_render(elements::CodeBlockVector, init::Dict{String, T}, newline::String, autoescape::Bool) where {T}
     body = quote
         txt = ""
     end
@@ -164,13 +146,13 @@ function build_render(elements::CodeBlockVector, init::Dict{String, T}, filters:
             end
             push!(body.args, :(txt *= string(eval($code))))
         elseif isa(e, TmpCodeBlock)
-            push!(body.args, e(filters, newline, autoescape))
+            push!(body.args, e(newline, autoescape))
         elseif isa(e, TmpBlock)
-            push!(body.args, e(filters, newline, autoescape))
+            push!(body.args, e(newline, autoescape))
         elseif isa(e, VariableBlock)
             if occursin("|>", e.exp)
                 exp = map(strip, split(e.exp, "|>"))
-                f = filters[exp[2]]
+                f = filters_alias[exp[2]]
                 if autoescape && f != htmlesc
                     push!(body.args, :(txt *= htmlesc($f(string($(Symbol(exp[1])))))))
                 else

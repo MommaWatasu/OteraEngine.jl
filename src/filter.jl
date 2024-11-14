@@ -22,7 +22,14 @@ function Base.string(str::SafeString)
     return str
 end
 
-filters = Expr[:(e=htmlesc), :(escape=htmlesc), :(upper=uppercase), :(lower=lowercase), :(safe=safe)]
+filters_def = Expr[]
+filters_alias = Dict(
+    "e" => :htmlesc,
+    "escape" => :htmlesc,
+    "upper" => :uppercase,
+    "lower" => :lowercase,
+    "safe" => :safe,
+)
 
 """
     @filter func
@@ -40,14 +47,31 @@ julia> @filter say_twice(x) = x*x
 macro filter(func::Expr)
     name = :none
     if func.head == :function
-        name = func.args[1]
+        name = func.args[1].args[1]
     elseif func.head == :(=) && func.args[1].head == :call
         name = func.args[1].args[1]
     else
         error("Invalid Filter: failed to get the name of the filter")
     end
     return quote
-        push!(OteraEngine.filters, Meta.parse($(string(func))))
+        push!(OteraEngine.filters_def, Meta.parse($(string(func))))
+        OteraEngine.filters_alias[$(string(name))] = Symbol($(string(name)))
+        $func
+    end
+end
+
+macro filter(alias::Symbol, func::Expr)
+    name = :none
+    if func.head == :function
+        name = func.args[1].args[1]
+    elseif func.head == :(=) && func.args[1].head == :call
+        name = func.args[1].args[1]
+    else
+        error("Invalid Filter: failed to get the name of the filter")
+    end
+    return quote
+        push!(OteraEngine.filters_def, Meta.parse($(string(func))))
+        OteraEngine.filters_alias[$(string(alias))] = Symbol($(string(name)))
         $func
     end
 end

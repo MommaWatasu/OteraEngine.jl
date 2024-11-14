@@ -149,7 +149,7 @@ function tokens2string(tokens::Vector{Token}, config::ParserConfig)
     return txt
 end
 
-function parse_meta(tokens::Vector{Token}, filters::Dict{String, Symbol}, config::ParserConfig; parse_macro::Bool = false, include::Bool=false)
+function parse_meta(tokens::Vector{Token}, config::ParserConfig; parse_macro::Bool = false, include::Bool=false)
     super = nothing
     out_tokens = Token[""]
     macros = Dict{String, String}()
@@ -276,14 +276,14 @@ function parse_meta(tokens::Vector{Token}, filters::Dict{String, Symbol}, config
                         macro_content[1] = chop_space(macro_content[1], config, true, false)
                         macro_content[end] = chop_space(macro_content[end], config, true, true)
                     end
-                    macros[get_macro_name(macro_def)] = build_macro(macro_def, macro_content, filters, config)
+                    macros[get_macro_name(macro_def)] = build_macro(macro_def, macro_content, config)
                     macro_def = ""
                     macro_content = Vector{Token}()
                 elseif operator == "include"
                     file_name = strip(code[8:end])
                     if file_name[1] == file_name[end] == '\"'
                         open(config.dir*"/"*file_name[2:end-1], "r") do f
-                            external_tokens, external_macros = parse_meta(tokenizer(read(f, String), config), filters, config, include=true)
+                            external_tokens, external_macros = parse_meta(tokenizer(read(f, String), config), config, include=true)
                             !isempty(external_macros) && throw(ParserError("nesting macros is not allowed"))
                             append!(macro_content, external_tokens)
                         end
@@ -383,7 +383,7 @@ function parse_meta(tokens::Vector{Token}, filters::Dict{String, Symbol}, config
                 alias = code_tokens[3]
                 if file_name[1] == file_name[end] == '\"'
                     open(config.dir*"/"*file_name[2:end-1], "r") do f
-                        external_macros = parse_meta(tokenizer(read(f, String), config), filters, config, parse_macro=true)
+                        external_macros = parse_meta(tokenizer(read(f, String), config), config, parse_macro=true)
                         for em in external_macros
                             macros[alias*"."*em[1]] = em[2]
                         end
@@ -400,7 +400,7 @@ function parse_meta(tokens::Vector{Token}, filters::Dict{String, Symbol}, config
                 file_name = import_st[:file_name]
                 external_macros = Dict()
                 open(config.dir*"/"*file_name[2:end-1], "r") do f
-                    external_macros = parse_meta(tokenizer(read(f, String), config), filters, config, parse_macro=true)
+                    external_macros = parse_meta(tokenizer(read(f, String), config), config, parse_macro=true)
                 end
                 for macro_name in split(import_st[:body], ",")
                     def_element = split(macro_name)
@@ -424,7 +424,7 @@ function parse_meta(tokens::Vector{Token}, filters::Dict{String, Symbol}, config
                 file_name = strip(code[8:end])
                 if file_name[1] == file_name[end] == '\"'
                     open(config.dir*"/"*file_name[2:end-1], "r") do f
-                        external_tokens, external_macros = parse_meta(tokenizer(read(f, String), config), filters, config, include=true)
+                        external_tokens, external_macros = parse_meta(tokenizer(read(f, String), config), config, include=true)
                         for em in external_macros
                             macros[alias*"."*em[1]] = em[2]
                         end
@@ -520,11 +520,11 @@ function parse_meta(tokens::Vector{Token}, filters::Dict{String, Symbol}, config
     end
 end
 
-function parse_template(txt::String, filters::Dict{String, Symbol}, config::ParserConfig)
+function parse_template(txt::String, config::ParserConfig)
     # tokenize
     tokens = tokenizer(txt, config)
     # process meta information
-    super, tokens = parse_meta(tokens, filters, config)
+    super, tokens = parse_meta(tokens, config)
 
     # array to store blocks
     blocks = Vector{TmpBlock}()

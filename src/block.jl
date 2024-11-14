@@ -24,7 +24,7 @@ function Base.push!(a::TmpBlock, v::Union{AbstractString, VariableBlock, JLCodeB
     push!(a.contents, v)
 end
 
-function (TB::TmpBlock)(filters::Dict{String, Symbol}, newline::String, autoescape::Bool)
+function (TB::TmpBlock)(newline::String, autoescape::Bool)
     code = ""
     for content in TB.contents
         t = typeof(content)
@@ -34,15 +34,15 @@ function (TB::TmpBlock)(filters::Dict{String, Symbol}, newline::String, autoesca
             jl_code = replace(content.code, newline=>";")
             code *= "txt *= begin;$jl_code;end;"
         elseif isa(content, TmpBlock)
-            code *= content(filters, newline, autoescape)
+            code *= content(newline, autoescape)
         elseif isa(content, VariableBlock)
             if occursin("|>", content.exp)
                 exp = map(strip, split(content.exp, "|>"))
-                f = filters[exp[2]]
+                f = filters_alias[exp[2]]
                 if autoescape && f != htmlesc
-                    code *= "txt *= htmlesc($(string(f))(string($(content.exp))));"
+                    code *= "txt *= htmlesc($(string(f))(string($(exp[1]))));"
                 else
-                    code *= "txt *= $(string(f))(string($(content.exp)));"
+                    code *= "txt *= $(string(f))(string($(content.exp[1])));"
                 end
             else
                 if autoescape
@@ -63,7 +63,7 @@ struct TmpCodeBlock
 end
 TmpCodeBlockTypes = Vector{Union{AbstractString, VariableBlock, JLCodeBlock, TmpStatement, TmpBlock}}
 
-function (TCB::TmpCodeBlock)(filters::Dict{String, Symbol}, newline::String, autoescape::Bool)
+function (TCB::TmpCodeBlock)(newline::String, autoescape::Bool)
     code = ""
     for content in TCB.contents
         if isa(content, TmpStatement)
@@ -72,11 +72,11 @@ function (TCB::TmpCodeBlock)(filters::Dict{String, Symbol}, newline::String, aut
             jl_code = replace(content.code, newline=>";")
             code *= "txt *= begin;$jl_code;end"
         elseif isa(content, TmpBlock)
-            code *= content(filters, newline, autoescape)
+            code *= content(newline, autoescape)
         elseif isa(content, VariableBlock)
             if occursin("|>", content.exp)
                 exp = map(strip, split(content.exp, "|>"))
-                f = filters[exp[2]]
+                f = filters_alias[exp[2]]
                 if autoescape && f != htmlesc
                     code *= "txt *= htmlesc($(string(f))(string($(content.exp))));"
                 else

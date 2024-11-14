@@ -13,7 +13,7 @@ function get_macro_args(macro_def::AbstractString)
     end
 end
 
-function build_macro(macro_def::AbstractString, contents::Vector{Token}, filters::Dict{String, Symbol}, config::ParserConfig)
+function build_macro(macro_def::AbstractString, contents::Vector{Token}, config::ParserConfig)
     out_contents = Vector{Token}()
     i = 1
     while i <= length(contents)
@@ -22,7 +22,7 @@ function build_macro(macro_def::AbstractString, contents::Vector{Token}, filters
             code = string(strip(contents[i]))
             if occursin("|>", code)
                 exp = split(code, "|>")
-                f = filters[exp[2]]
+                f = filters_alias[exp[2]]
                 if config.autospace && f != htmlesc
                     push!(out_contents, "\$(htmlesc($f(string($(exp[1])))))")
                 else
