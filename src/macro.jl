@@ -42,8 +42,11 @@ function build_macro(macro_def::AbstractString, contents::Vector{Token}, config:
         end
         i += 1
     end
-    return get_macro_args(macro_def) * " = " * replace(string(out_contents), "\\\$"=>"\$")
+    return get_macro_args(macro_def) * "=" * replace(string(out_contents), "\\\$"=>"\$")
 end
+
+# List to store definition part of defined macros
+defined_macros = String[]
 
 function apply_macros(tokens::Vector{Token}, macros::Dict{String, String}, config::ParserConfig)
     for m in macros
@@ -52,7 +55,13 @@ function apply_macros(tokens::Vector{Token}, macros::Dict{String, String}, confi
         if length(path) != 1
             name = path[end]
         end
-        eval(Meta.parse(name*m[2]))
+        macro_args = split(replace(m[2], " "=>""), ")=")[1]
+        if name*macro_args in defined_macros
+            continue
+        else
+            eval(Meta.parse(name*m[2]))
+            push!(defined_macros, name*macro_args)
+        end
     end
     
     regex = r"\s*(?<name>.*?)(?<args>\(.*?\))"
