@@ -16,9 +16,6 @@ Template
 @filter
 ```
 
-!!! info "WARNING caused by `template_render`"
-    Redefining template_render may generate a warning, but there is currently no problem.
-
 Learn about syntax and configuration in the sections below.
 
 ## Abstract for Usage
@@ -61,13 +58,12 @@ variable name and filter name are separeted by `|>`. Built-in filters are follow
 
 You can define filters by yourself:
 ```julia
-@filter say_twice(txt) = txt*txt
-filters = Dict(
-    "repeat" => say_twice
-)
-tmp = Template(..., filters=filters)
+@filter repeat say_twice(txt) = txt*txt
+@filter function greet(x)
+    return x * "Hello"
+end
 ```
-Then you can use `repeat` in you template.
+Then you can use `repeat` and `greet` in you template. See also: [`@filter`](@ref).
 
 ## Julia Code Block
 You can write Julia deirectly in templates with this block. Variables are shared between Julia Code Block and Tmp Code Block, and variables defined in `init` are also available. And arbitary type(for example DataFrame) are available in this block.
@@ -379,7 +375,7 @@ This is equal to `with` block in Jinja2.
 `set` block is converted into `global (variable) = (value)`. So you can use variables in every control blocks(not in expression blocks now).
 
 ## Macro
-Macro is similar to function in Programming Language. In fact, OteraEngine converts macros into Julia function internally.
+Macro is similar to function in Programming Language. In fact, OteraEngine converts macros into Julia function internally. You can define different macro with the sae name as long as the arguments are different. If you write some functions with same name and arguments, macros other than the first would be ignored(In other words, method overwriting isn't supported).
 This is the example:
 ```html
 {% macro input(name, value="", type="text", size=20) %}
