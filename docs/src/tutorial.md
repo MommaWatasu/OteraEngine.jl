@@ -73,7 +73,7 @@ This is the example:
     {<
         a = 10
         b = sqrt(2)
-        round(a*B)
+        round(a*b)
     >}
 </div>
 ```
