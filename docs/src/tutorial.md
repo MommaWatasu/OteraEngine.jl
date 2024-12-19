@@ -85,13 +85,20 @@ Output:
 ```
 
 ## Comment
-To comment out part of template, use comment block which set to `{# #}` by default:
+To comment out parts of template, use comment block which set to `{# #}` by default:
 ```
 {#
     This is comment.
     These lines are just ignored and removed
 #}
 ```
+Comment blocks can be nested like this:
+```
+{#
+   Comments look something like this: {# foo #}
+#}
+```
+Ofcourse this sample render empty.
 
 ## White Space Control
 OteraEngine has option to control spaces which is named `lstrip_blocks` and `trim_blocks`.
