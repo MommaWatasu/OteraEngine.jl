@@ -155,7 +155,7 @@ function parse_meta(tokens::Vector{Token}, config::ParserConfig; parse_macro::Bo
     macros = Dict{String, String}()
     macro_def = ""
     macro_content = Vector{Token}()
-    comment = false
+    comment_depth = 0
     raw = false
     raw_idx = [1, 1]
     next_trim = ' '
@@ -230,8 +230,8 @@ function parse_meta(tokens::Vector{Token}, config::ParserConfig; parse_macro::Bo
 
         # check end of comment block
         if tokens[i] == :comment_end
-            if comment
-                comment = false
+            if comment_depth > 0
+                comment_depth -= 1
                 i += 1
                 continue
             else
@@ -239,7 +239,10 @@ function parse_meta(tokens::Vector{Token}, config::ParserConfig; parse_macro::Bo
             end
         end
         # inside of comment block
-        if comment
+        if comment_depth != 0
+            if tokens[i] == :comment_start
+                comment_depth += 1
+            end
             i += 1
             continue
         end
@@ -317,7 +320,7 @@ function parse_meta(tokens::Vector{Token}, config::ParserConfig; parse_macro::Bo
     
             # comment start
             elseif tokens[i] == :comment_start
-                comment = true
+                comment_depth += 1
     
             # push other tokens
             else
@@ -466,7 +469,7 @@ function parse_meta(tokens::Vector{Token}, config::ParserConfig; parse_macro::Bo
 
         # comment start
         elseif tokens[i] == :comment_start
-            comment = true
+            comment_depth += 1
 
             i += 1
             # process lstrip token
