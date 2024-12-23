@@ -22,7 +22,6 @@ function Base.string(str::SafeString)
     return str
 end
 
-filters_def = Expr[]
 filters_alias = Dict(
     "e" => :htmlesc,
     "escape" => :htmlesc,
@@ -61,7 +60,7 @@ macro filter(func::Expr)
         error("Invalid Filter: failed to get the name of the filter")
     end
     return quote
-        push!(OteraEngine.filters_def, Meta.parse($(string(func))))
+        eval(OteraEngine, Meta.parse($(string(func))))
         OteraEngine.filters_alias[$(string(name))] = Symbol($(string(name)))
         $func
     end
@@ -77,7 +76,7 @@ macro filter(alias::Symbol, func::Expr)
         error("Invalid Filter: failed to get the name of the filter")
     end
     return quote
-        push!(OteraEngine.filters_def, Meta.parse($(string(func))))
+        eval(OteraEngine, Meta.parse($(string(func))))
         OteraEngine.filters_alias[$(string(alias))] = Symbol($(string(name)))
         $func
     end
