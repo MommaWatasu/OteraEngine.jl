@@ -1,7 +1,3 @@
-struct JLCodeBlock
-    code::String
-end
-
 mutable struct SuperBlock
     count::Int
 end
@@ -16,11 +12,11 @@ end
 
 struct TmpBlock
     name::String
-    contents::Vector{Union{AbstractString, JLCodeBlock, TmpStatement, TmpBlock, VariableBlock, SuperBlock}}
+    contents::Vector{Union{AbstractString, TmpStatement, TmpBlock, VariableBlock, SuperBlock}}
 end
-TmpBlockTypes = Vector{Union{AbstractString, JLCodeBlock, TmpStatement, TmpBlock, VariableBlock, SuperBlock}}
+TmpBlockTypes = Vector{Union{AbstractString, TmpStatement, TmpBlock, VariableBlock, SuperBlock}}
 
-function Base.push!(a::TmpBlock, v::Union{AbstractString, VariableBlock, JLCodeBlock, TmpStatement, SuperBlock})
+function Base.push!(a::TmpBlock, v::Union{AbstractString, VariableBlock, TmpStatement, SuperBlock})
     push!(a.contents, v)
 end
 
@@ -30,9 +26,6 @@ function (TB::TmpBlock)(newline::String, autoescape::Bool)
         t = typeof(content)
         if isa(content, TmpStatement)
             code *= "$(content.st);"
-        elseif isa(content, JLCodeBlock)
-            jl_code = replace(content.code, newline=>";")
-            code *= "txt *= begin;$jl_code;end;"
         elseif isa(content, TmpBlock)
             code *= content(newline, autoescape)
         elseif isa(content, VariableBlock)
@@ -59,18 +52,15 @@ function (TB::TmpBlock)(newline::String, autoescape::Bool)
 end
 
 struct TmpCodeBlock
-    contents::Vector{Union{AbstractString, VariableBlock, JLCodeBlock, TmpStatement, TmpBlock}}
+    contents::Vector{Union{AbstractString, VariableBlock, TmpStatement, TmpBlock}}
 end
-TmpCodeBlockTypes = Vector{Union{AbstractString, VariableBlock, JLCodeBlock, TmpStatement, TmpBlock}}
+TmpCodeBlockTypes = Vector{Union{AbstractString, VariableBlock, TmpStatement, TmpBlock}}
 
 function (TCB::TmpCodeBlock)(newline::String, autoescape::Bool)
     code = ""
     for content in TCB.contents
         if isa(content, TmpStatement)
             code *= "$(content.st);"
-        elseif isa(content, JLCodeBlock)
-            jl_code = replace(content.code, newline=>";")
-            code *= "txt *= begin;$jl_code;end"
         elseif isa(content, TmpBlock)
             code *= content(newline, autoescape)
         elseif isa(content, VariableBlock)
@@ -103,8 +93,8 @@ function (TCB::TmpCodeBlock)(newline::String, autoescape::Bool)
     end
 end
 
-CodeBlockVector = Vector{Union{AbstractString, JLCodeBlock, TmpCodeBlock, TmpBlock, VariableBlock, SuperBlock}}
-SubCodeBlockVector = Vector{Union{AbstractString, JLCodeBlock, TmpStatement, TmpBlock, VariableBlock, SuperBlock}}
+CodeBlockVector = Vector{Union{AbstractString, TmpCodeBlock, TmpBlock, VariableBlock, SuperBlock}}
+SubCodeBlockVector = Vector{Union{AbstractString, TmpStatement, TmpBlock, VariableBlock, SuperBlock}}
 
 function get_string(tb::TmpBlock)
     txt = ""

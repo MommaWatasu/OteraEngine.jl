@@ -46,14 +46,6 @@ function tokenizer(txt::String, config::ParserConfig)
             push!(tokens, txt[idx:prevind(txt, i)])
             push!(tokens, :expression_end)
             idx = nextind(txt, i, length(config.expression_block[2]))
-        elseif txt[i:min(nextind(txt, i, length(config.jl_block[1])-1), end)] == config.jl_block[1]
-            push!(tokens, txt[idx:prevind(txt, i)])
-            push!(tokens, :jl_start)
-            idx = nextind(txt, i, length(config.jl_block[1]))
-        elseif txt[i:min(nextind(txt, i, length(config.jl_block[2])-1), end)] == config.jl_block[2]
-            push!(tokens, txt[idx:prevind(txt, i)])
-            push!(tokens, :jl_end)
-            idx = nextind(txt, i, length(config.jl_block[2]))
         elseif txt[i:min(nextind(txt, i, length(config.comment_block[1])-1), end)] == config.comment_block[1]
             push!(tokens, txt[idx:prevind(txt, i)])
             push!(tokens, :comment_start)
@@ -136,10 +128,6 @@ function tokens2string(tokens::Vector{Token}, config::ParserConfig)
             txt *= config.expression_block[1]
         elseif token == :expression_end
             txt *= config.expression_block[2]
-        elseif token == :jl_start
-            txt *= config.jl_block[1]
-        elseif token == :jl_end
-            txt *= config.jl_block[2]
         elseif token == :comment_start
             txt *= config.comment_block[1]
         elseif token == :comment_end
@@ -630,19 +618,6 @@ function parse_template(txt::String, config::ParserConfig)
                 push!(code_block, exp)
             end
             tokens[i+1] != :expression_end && throw(ParserError("invalid expression block: this block is not closed"))
-            i += 1
-            
-        elseif tokens[i] == :jl_start
-            i += 1
-            code = tokens[i]
-            if in_block_depth != 0
-                push_code_block!(code_block, JLCodeBlock(code), in_block_depth)
-            elseif depth == 0
-                push!(elements, JLCodeBlock(code))
-            else
-                push!(code_block, JLCodeBlock(code))
-            end
-            tokens[i+1] != :jl_end && throw(ParserError("invalid jl block: this block is not closed"))
             i += 1
             
         elseif typeof(tokens[i]) <: AbstractString

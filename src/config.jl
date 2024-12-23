@@ -7,7 +7,6 @@ Base.showerror(io::IO, e::ConfigError) = print(io, "ConfigError: "*e.msg)
 struct ParserConfig
     control_block::Tuple{String, String}
     expression_block::Tuple{String, String}
-    jl_block::Tuple{String, String}
     comment_block::Tuple{String, String}
     newline::String
     autospace::Bool
@@ -29,7 +28,6 @@ struct ParserConfig
             if (
                 config["control_block_start"] == config["control_block_end"]
                 || config["expression_block_start"] == config["expression_block_end"]
-                || config["jl_block_start"] == config["jl_block_end"]
                 || config["comment_block_start"] == config["comment_block_end"]
             )
                 throw(ConfigError("invalid configuration: start token and end token must be different"))
@@ -37,7 +35,6 @@ struct ParserConfig
         return new(
             (config["control_block_start"], config["control_block_end"]),
             (config["expression_block_start"], config["expression_block_end"]),
-            (config["jl_block_start"], config["jl_block_end"]),
             (config["comment_block_start"], config["comment_block_end"]),
             config["newline"],
             config["autospace"],
@@ -54,8 +51,6 @@ config2dict(config::ParserConfig) = Dict{String, Union{String, Bool}}(
     "control_block_end" => config.control_block[2],
     "expression_block_start" => config.expression_block[1],
     "expression_block_end" => config.expression_block[2],
-    "jl_block_start" => config.jl_block[1],
-    "jl_block_end" => config.jl_block[2],
     "comment_block_start" => config.comment_block[1],
     "comment_block_end" => config.comment_block[2],
     "newline" => config.newline,
