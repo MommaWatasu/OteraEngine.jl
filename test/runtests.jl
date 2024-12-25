@@ -7,26 +7,20 @@ using Test
 @testset "OteraEngine.jl" begin
     @test_throws ParserError throw(ParserError("Test"))
     result = ""
+    
     # When initializing variables directly
-    @test_nowarn Template("jl_block1.html")
-    tmp = Template("jl_block1.html")
-    open("jl_block2.html", "r") do f
+    @test_nowarn Template("config1.html")
+    # In case of no params and specified config
+    tmp = Template("config1.html", config=Dict("control_block_start"=>"{:", "control_block_end"=>":}"))
+    open("config2.html", "r") do f
         result = read(f, String)
     end
-    @test result == tmp(init=Dict("usr"=>"Julia"))
-    
-    # In case of no params and specified config
-    tmp = Template("config.html", config=Dict("jl_block_start"=>"```code", "jl_block_end"=>"```"))
-    regex = r"<strong>\s*(?<value>[0-9]*)\s*?</strong>"
-    m = match(regex, tmp())
-    @test 0 <= parse(Int, m[:value]) <= 100
+    @test result == tmp()
     
     # include config file
-    @test_throws ArgumentError Template("config.html", config_path="test.conf")
-    tmp = Template("config.html", config_path="test.toml")
-    regex = r"<strong>\s*(?<value>[0-9]*)\s*?</strong>"
-    m = match(regex, tmp())
-    @test 0 <= parse(Int, m[:value]) <= 100
+    @test_throws ArgumentError Template("config1.html", config_path="test.conf")
+    tmp = Template("config1.html", config_path="test.toml")
+    @test result == tmp()
     
     # check tmp codes work properly
     tmp = Template("tmp_block1.html")
@@ -79,7 +73,7 @@ using Test
     open("block2.html", "r") do f
         result = read(f, String)
     end
-    @test result == tmp(init=Dict("name"=>"watasu", "age"=>15))
+    @test result == tmp(init=Dict(:name=>"watasu", :age=>15))
 
     # check if `dir` option is working
     tmp = Template("wd_test/dir1.html")
@@ -124,7 +118,7 @@ using Test
     open("filter2.html", "r") do f
         result = read(f, String)
     end
-    @test result == tmp(init=Dict("title"=>"upper case", "greet"=>"Hello"))
+    @test result == tmp(init=Dict(:title=>"upper case", :test=>"Hello"))
 
     # macro
     tmp = Template("macro1.html")
@@ -162,14 +156,14 @@ using Test
     open("autoescape2.html", "r") do f
         result = read(f, String)
     end
-    @test result == tmp(init=Dict("attack"=>"<script>This is injection attack</script>"))
+    @test result == tmp(init=Dict(:attack=>"<script>This is injection attack</script>"))
 
     # use |> safe filter
     tmp = Template("safe.html")
     open("autoescape2.html", "r") do f
         result = read(f, String)
     end
-    @test result == tmp(init=Dict("attack"=>"<script>This is injection attack</script>"))
+    @test result == tmp(init=Dict(:attack=>"<script>This is injection attack</script>"))
 
     tmp = Template("space_control1.html", config=Dict("autospace"=>false, "lstrip_blocks"=>false, "trim_blocks"=>false))
     open("space_control2.html", "r") do f

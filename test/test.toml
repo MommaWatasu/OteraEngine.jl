@@ -1,2 +1,2 @@
-jl_block_start = "```code"
-jl_block_end = "```"
+control_block_start = "{:"
+control_block_end = ":}"
