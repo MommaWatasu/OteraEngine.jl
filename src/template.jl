@@ -93,7 +93,7 @@ function (temp::Template)(; init::Dict{Symbol, T} = Dict{Symbol, Any}()) where {
             throw(TemplateError("insufficient variable: $(string(sym))"))
         end
     end
-    return temp.render(args...)
+    return string(lstrip(temp.render(args...)))
 end
 
 function build_config(dir::String, config_path::String, config::Dict{String, K}) where {K}
@@ -231,7 +231,7 @@ function _walk(expr::Any, defined::Set{Symbol})
             used_total = Set{Symbol}()
             local_defined = copy(defined)
             for subexpr in expr.args
-                used_sub, _ = _walk(subexpr, local_defined)
+                used_sub, local_defined = _walk(subexpr, local_defined)
                 used_total = union(used_total, used_sub)
             end
             return (used_total, local_defined)
@@ -246,7 +246,7 @@ function _walk(expr::Any, defined::Set{Symbol})
             used_total = Set{Symbol}()
             local_defined = copy(defined)
 
-            if !isempty(expr.args) && isa(expr.args[1], Expr) && expr.args[1].head === :in
+            if !isempty(expr.args) && isa(expr.args[1], Expr) && expr.args[1].head === :(=)
                 i, iter_expr = expr.args[1].args
                 # (a) Walk the iteration source
                 used_iter, defined_iter = _walk(iter_expr, local_defined)
@@ -283,37 +283,22 @@ function _walk(expr::Any, defined::Set{Symbol})
             #   body...
             # end
             # Inside this let block, x, y, etc. are newly defined
-            # e.args[1] often is Expr(:tuple, (assignments)...)
             used_total = Set{Symbol}()
             local_defined = copy(defined)
 
-            if length(expr.args) >= 2 && isa(expr.args[1], Expr) && expr.args[1].head === :tuple
-                # The assignments in the let header
+            if expr.args[1].head == :block
+                # If there are multiple definition statements, each one is like a normal assignment
                 for def_ex in expr.args[1].args
-                    if isa(def_ex, Expr) && def_ex.head === :(=)
-                        l, r = def_ex.args
-                        used_r, local_defined = _walk(r, local_defined)
-                        used_total = union(used_total, used_r)
-                        if isa(l, Symbol)
-                            push!(local_defined, l)
-                        else
-                            used_l, local_defined = _walk(l, local_defined)
-                            used_total = union(used_total, used_l)
-                        end
-                    else
-                        # If not x=..., just walk it
-                        used_def, local_defined = _walk(def_ex, local_defined)
-                        used_total = union(used_total, used_def)
-                    end
+                    push!(local_defined, def_ex.args[1])
                 end
+            else
+                # If there is only one definition statement, it must be like a normal assignment
+                def_ex = expr.args[1]
+                push!(local_defined, def_ex.args[1])
             end
 
-            # Walk the let body
-            used_body = Set{Symbol}()
-            for b in expr.args[2:end]
-                used_b, local_defined = _walk(b, local_defined)
-                used_body = union(used_body, used_b)
-            end
+            # Walk the let used_body
+            used_body, _ = _walk(expr.args[2], local_defined)
 
             used_total = union(used_total, used_body)
             return (used_total, defined)
@@ -338,12 +323,12 @@ end
 
 
 build_render(_::Nothing, elements::CodeBlockVector, _::Vector{TmpBlock}, newline::String, autoescape::Bool) = build_render(elements, newline, autoescape)
-function build_render(super::Template, elements::CodeBlockVector, blocks::Vector{TmpBlock}, newline::String, autoescape::Bool)
+function build_render(super::ExtendTemplate, _::CodeBlockVector, blocks::Vector{TmpBlock}, newline::String, autoescape::Bool)
     blocks = inherite_blocks(blocks, super.blocks)
     if super.super !== nothing
-        return build_render(super.super, elements, blocks, newline, autoescape)
+        return build_render(super.super, super.elements, blocks, newline, autoescape)
     end
-    elements = apply_inheritance(elements, blocks)
+    elements = apply_inheritance(super.elements, blocks)
     build_render(elements, newline, autoescape)
 end
 

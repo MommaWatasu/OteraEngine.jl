@@ -60,7 +60,7 @@ macro filter(func::Expr)
         error("Invalid Filter: failed to get the name of the filter")
     end
     return quote
-        eval(OteraEngine, Meta.parse($(string(func))))
+        Core.eval(OteraEngine, Meta.parse($(string(func))))
         OteraEngine.filters_alias[$(string(name))] = Symbol($(string(name)))
         $func
     end
@@ -76,7 +76,7 @@ macro filter(alias::Symbol, func::Expr)
         error("Invalid Filter: failed to get the name of the filter")
     end
     return quote
-        eval(OteraEngine, Meta.parse($(string(func))))
+        Core.eval(OteraEngine, Meta.parse($(string(func))))
         OteraEngine.filters_alias[$(string(alias))] = Symbol($(string(name)))
         $func
     end
