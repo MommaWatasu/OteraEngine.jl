@@ -1,4 +1,23 @@
-## rewrite this description
+abstract type AbstractTemplate end
+
+struct ExtendTemplate <: AbstractTemplate
+    super::Union{Nothing, ExtendTemplate}
+    elements::CodeBlockVector
+    blocks::Vector{TmpBlock}
+end
+
+function ExtendTemplate(
+    path::String,
+    config::ParserConfig
+)
+    txt = ""
+    open(path, "r") do f
+        txt = read(f, String)
+    end
+
+    return ExtendTemplate(parse_template(txt, config)...)
+end
+
 """
     Template(
         txt::String;
@@ -26,8 +45,8 @@ julia> init = Dict("usr"=>"OteraEngine")
 julia> tmp(init = init)
 ```
 """
-struct Template
-    super::Union{Nothing, Template}
+struct Template <: AbstractTemplate
+    super::Union{Nothing, ExtendTemplate}
     elements::CodeBlockVector
     blocks::Vector{TmpBlock}
     config::ParserConfig

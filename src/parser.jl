@@ -428,7 +428,7 @@ function parse_meta(tokens::Vector{Token}, config::ParserConfig; parse_macro::Bo
                 include && throw(ParserError("invalid block: `extends` must be at the top of templates"))
                 file_name = strip(code[8:end])
                 if file_name[1] == file_name[end] == '\"'
-                    super = Template(config.dir*"/"*file_name[2:end-1], config = config2dict(config))
+                    super = ExtendTemplate(config.dir*"/"*file_name[2:end-1], config)
                 else
                     throw(ParserError("failed to read $file_name: file name have to be enclosed in double quotation marks"))
                 end
