@@ -20,7 +20,7 @@ Learn about syntax and configuration in the sections below.
 
 ## Abstract for Usage
 Basic syntax of OteraEngine is very similar to one of Jinja2 of Python. You can use OteraEngine for any extension format which has text.
-There are 4 types of blocks:
+There are 3 types of blocks:
 - `{% ... %}`: Control block
 - `{{ ... }}`: Expression block
 - `{# ... #}`: Comment block
@@ -414,7 +414,7 @@ This template generate the same output as the previous example.
 ```
 
 ## Configurations
-there are 14 configurations:
+there are 12 configurations:
 - `control_block_start`: the string at the start of tmp code blocks.
 - `control_block_end` : the string at the end of tmp code blocks.
 - `expression_block_start` : the string at the start of expression blocks.
