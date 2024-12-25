@@ -33,7 +33,7 @@ This structure has 4 parameter,
 - `config` is configuration of template. It is type of `Dict`, please see [configuraiton](#Configurations) for more detail.
 
 # Rendering
-After you create a Template, you just have to execute the codes! For this, you use the Function-like Object of Template structure.`tmp(; init::Dict{String, T}) where {T}` variables are initialized by `init` Dict which contains the pair of name(String) and value. If you don't pass the `init`, the initialization won't be done.
+After you create a Template, you just have to execute the codes! For this, you use the Function-like Object of Template structure.`tmp(; init::Dict{Symbol, T}) where {T}` variables are initialized by `init` Dict which contains the pair of name(String) and value. If you don't pass the `init`, the initialization won't be done.
 
 # Example
 This is a simple usage:
@@ -41,7 +41,7 @@ This is a simple usage:
 julia> using OteraEngine
 julia> txt = "Hello {{ usr }}!"
 julia> tmp = Template(txt, path = false)
-julia> init = Dict("usr"=>"OteraEngine")
+julia> init = Dict(:usr=>"OteraEngine")
 julia> tmp(init = init)
 ```
 """
@@ -80,7 +80,7 @@ function Template(
     # build config
     config = build_config(dir, config_path, config)
     parse_result = parse_template(txt, config)
-    render, args = build_render(parse_result..., config.newline, config.autoescape)
+    render, args = build_renderer(parse_result..., config.newline, config.autoescape)
     return Template(parse_result..., config, render, args)
 end
 
@@ -129,47 +129,47 @@ end
 
 Base.showerror(io::IO, e::TemplateError) = print(io, "TemplateError: "*e.msg)
 
-"""
-    undefined_symbols(expr::Any)
-
-Traverses the given expression `expr` to find symbols that are used before being defined.
-Returns a set of such undefined symbols.
-
-The following constructs are handled:
-  - x = rhs (assignment)
-  - x += rhs, x -= rhs, x *= rhs, x /= rhs (compound assignment)
-  - if cond
-      ...
-    [elseif ...]
-    [else ...]
-    end
-  - for i in iter
-      ...
-    end
-  - let x = expr, y = expr, ...
-      ...
-    end
-For other expressions, it just recurses into child expressions. 
-Any actual scoping behavior (introducing new definitions for subsequent expressions) is handled in `_walk`.
-"""
+#=
+#     undefined_symbols(expr::Any)
+# 
+# Traverses the given expression `expr` to find symbols that are used before being defined.
+# Returns a set of such undefined symbols.
+# 
+# The following constructs are handled:
+#   - x = rhs (assignment)
+#   - x += rhs, x -= rhs, x *= rhs, x /= rhs (compound assignment)
+#   - if cond
+#       ...
+#     [elseif ...]
+#     [else ...]
+#     end
+#   - for i in iter
+#       ...
+#     end
+#   - let x = expr, y = expr, ...
+#       ...
+#     end
+# For other expressions, it just recurses into child expressions. 
+# Any actual scoping behavior (introducing new definitions for subsequent expressions) is handled in `_walk`.
+=#
 function undefined_symbols(expr::Any)
     used, _ = _walk(expr, Set{Symbol}())
     return used
 end
 
-"""
-    _walk(expr, defined::Set{Symbol})
-
-A helper function that returns a tuple `(used::Set{Symbol}, new_defined::Set{Symbol})`.
-
-- `used` is the set of undefined symbols encountered in `expr`.
-- `new_defined` is the updated set of defined symbols *after* fully processing `expr`.
-
-`defined` is the set of symbols considered defined before processing this expression.
-
-We handle only a limited set of constructs (assignment, if, for, let, and compound assignments).
-All other expressions are handled by simply recursing over their subexpressions without modifying `defined`.
-"""
+#=
+#     _walk(expr, defined::Set{Symbol})
+# 
+# A helper function that returns a tuple `(used::Set{Symbol}, new_defined::Set{Symbol})`.
+# 
+# - `used` is the set of undefined symbols encountered in `expr`.
+# - `new_defined` is the updated set of defined symbols *after* fully processing `expr`.
+# 
+# `defined` is the set of symbols considered defined before processing this expression.
+# 
+# We handle only a limited set of constructs (assignment, if, for, let, and compound assignments).
+# All other expressions are handled by simply recursing over their subexpressions without modifying `defined`.
+=#
 function _walk(expr::Any, defined::Set{Symbol})
     # 1) If `expr` is just a Symbol
     if isa(expr, Symbol)
@@ -322,17 +322,17 @@ function _walk(expr::Any, defined::Set{Symbol})
 end
 
 
-build_render(_::Nothing, elements::CodeBlockVector, _::Vector{TmpBlock}, newline::String, autoescape::Bool) = build_render(elements, newline, autoescape)
-function build_render(super::ExtendTemplate, _::CodeBlockVector, blocks::Vector{TmpBlock}, newline::String, autoescape::Bool)
+build_renderer(_::Nothing, elements::CodeBlockVector, _::Vector{TmpBlock}, newline::String, autoescape::Bool) = build_renderer(elements, newline, autoescape)
+function build_renderer(super::ExtendTemplate, _::CodeBlockVector, blocks::Vector{TmpBlock}, newline::String, autoescape::Bool)
     blocks = inherite_blocks(blocks, super.blocks)
     if super.super !== nothing
-        return build_render(super.super, super.elements, blocks, newline, autoescape)
+        return build_renderer(super.super, super.elements, blocks, newline, autoescape)
     end
     elements = apply_inheritance(super.elements, blocks)
-    build_render(elements, newline, autoescape)
+    build_renderer(elements, newline, autoescape)
 end
 
-function build_render(elements::CodeBlockVector, newline::String, autoescape::Bool)
+function build_renderer(elements::CodeBlockVector, newline::String, autoescape::Bool)
     render = quote
         txt = ""
     end

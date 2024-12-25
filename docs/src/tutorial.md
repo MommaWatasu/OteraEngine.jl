@@ -23,11 +23,12 @@ Basic syntax of OteraEngine is very similar to one of Jinja2 of Python. You can 
 There are 4 types of blocks:
 - `{% ... %}`: Control block
 - `{{ ... }}`: Expression block
-- `{< ... >}`: Julia block
 - `{# ... #}`: Comment block
 Control block is used for control flow like `if` or `for`, and Expression block is used for embedding variables. Commend block is just ignored and remove from template.
 These block must be familiar with those who have ever used jinja2, but OteraEngine has one more block.
-Julia block makes you possible to write Julia code directly into templates.
+
+!!! compat "Julia block is no longer supported(since v1.0.0)"
+    Julia blocks have been deprecated to simplify the renderer. Now, you have to pass variables processed in caller.
 
 ## Variables
 As mentioned in previous section, you can embed variables with Expression block. And you can define variables in both templates and julia. Here is an example:
@@ -41,9 +42,9 @@ As mentioned in previous section, you can embed variables with Expression block.
 You can define variables from julia code like this:
 ```julia
 tmp = Template(...)
-tmp(init=Dict("name"=>"Julia"))
+tmp(init=Dict(:name=>"Julia"))
 ```
-init is also used for control blocks, and its type is `Dict`. The format is `(variable name)=>(value)`.
+init is also used for control blocks, and its type is `Dict`. The format is `(variable symbol)=>(value)`.
 
 ## Filters
 This is very useful function for expression block. You can apply filters for variables like this:
@@ -65,24 +66,9 @@ end
 ```
 Then you can use `repeat` and `greet` in you template. See also: [`@filter`](@ref).
 
-## Julia Code Block
-You can write Julia deirectly in templates with this block. Variables are shared between Julia Code Block and Tmp Code Block, and variables defined in `init` are also available. And arbitary type(for example DataFrame) are available in this block.
-This is the example:
-```html
-<div>
-    {<
-        a = 10
-        b = sqrt(2)
-        round(a*b)
-    >}
-</div>
-```
-Output:
-```html
-<div>
-    14.0
-</div>
-```
+!!! warning "Do not use the same name for a filter and a variable name"
+    When a Template builds renderer, `build_renderer` function finds all the undefined symbol which should be passed by user.
+    If the name is already used for a filter, the function can't recognize the variable undefined, and then it returns unexpected output.
 
 ## Comment
 To comment out parts of template, use comment block which set to `{# #}` by default:
@@ -431,8 +417,6 @@ This template generate the same output as the previous example.
 there are 14 configurations:
 - `control_block_start`: the string at the start of tmp code blocks.
 - `control_block_end` : the string at the end of tmp code blocks.
-- `jl_block_start`: the string at the start of jl code blocks.
-- `jl_block_end` : the string at the end of jl code blocks.
 - `expression_block_start` : the string at the start of expression blocks.
 - `expression_block_end` : the string at the end of expression blocks.
 - `comment_block_start`: the string at the start of comment blocks.
@@ -449,8 +433,6 @@ and the default configuration is this:
 "control_block_end"=>"%}",
 "expression_block_start"=>"{{",
 "expression_block_end"=>"}}",
-"jl_block_start" => "{<",
-"jl_block_end" => ">}",
 "comment_block_start" => "{#",
 "comment_block_end" => "#}",
 "newline" => (Sys.islinux()) ? "\n" : "\r\n",
@@ -462,7 +444,7 @@ and the default configuration is this:
 ```
 These configuration can be changed by using `config` argument of `Template()` like this:
 ```
-tmp = Template("config.html", config=Dict("jl_block_start"=>"```code", "jl_block_end"=>"```"))
+tmp = Template("config.html", config=Dict("control_block_start"=>"{$", "control_block_end"=>"$}"))
 ```
 configurations can be loaded from TOML file. You don't have to specify all the configurations(The rest uses the default settings).
 
