@@ -173,7 +173,7 @@ end
 function _walk(expr::Any, defined::Set{Symbol})
     # 1) If `expr` is just a Symbol
     if isa(expr, Symbol)
-        if expr in defined || isdefined(OteraEngine, expr)
+        if expr in defined
             return (Set{Symbol}(), defined)  # No new undefined symbol, no change in defined set
         else
             return (Set([expr]), defined)    # `expr` is undefined, so add it to 'used'
@@ -303,7 +303,20 @@ function _walk(expr::Any, defined::Set{Symbol})
             used_total = union(used_total, used_body)
             return (used_total, defined)
 
-        # 2.6) Other expression types (function calls, etc.)
+        # 2.6) Function call
+        elseif h === :call
+            used_total = Set{Symbol}()
+            local_defined = copy(defined)
+            # ignore the symbol representing the function
+            for (i, subexpr) in enumerate(expr.args)
+                if i > 1
+                    used_sub, local_defined = _walk(subexpr, local_defined)
+                    used_total = union(used_total, used_sub)
+                end
+            end
+            return (used_total, local_defined)
+
+        # 2.7) Other expression types (function calls, etc.)
         else
             # No new scope. Just traverse subexpressions.
             used_total = Set{Symbol}()
