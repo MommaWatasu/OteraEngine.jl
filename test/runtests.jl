@@ -177,4 +177,12 @@ using Test
         result = read(f, String)
     end
     @test tmp() == result
+
+    tmp = Template("assign1.html")
+    open("assign2.html", "r") do f
+        result = read(f, String)
+    end
+    @test result == tmp(init = Dict(
+            :names => ["gate", "horse", "watasu"],
+    ))
 end
