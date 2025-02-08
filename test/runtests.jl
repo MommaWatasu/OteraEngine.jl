@@ -2,10 +2,67 @@ using OteraEngine
 import OteraEngine.SafeString
 import OteraEngine.safe
 import OteraEngine.ParserError
+import OteraEngine.TemplateError
+import OteraEngine.ParserConfig
+import OteraEngine.ConfigError
+import OteraEngine.config2dict
 using Test
 
 @testset "OteraEngine.jl" begin
-    @test_throws ParserError throw(ParserError("Test"))
+    @testset "config" begin
+        @test_throws ConfigError ParserConfig(
+            Dict{String, Union{String, Bool}}(
+                "control_block_start" => "{%",
+                "control_block_end" => "{%",
+                "expression_block_start" => "{{",
+                "expression_block_end" => "}}",
+                "comment_block_start" => "{#",
+                "comment_block_end" => "#}",
+                "newline" => "\n",
+                "autospace" => true,
+                "lstrip_blocks" => true,
+                "trim_blocks" => true,
+                "autoescape" => false,
+                "dir" => "templates"
+            )
+        )
+
+        # Create a sample ParserConfig instance
+        test_dict = Dict{String, Union{String, Bool}}(
+            "control_block_start" => "{%",
+            "control_block_end" => "%}",
+            "expression_block_start" => "{{",
+            "expression_block_end" => "}}",
+            "comment_block_start" => "{#",
+            "comment_block_end" => "#}",
+            "newline" => "\n",
+            "autospace" => true,
+            "lstrip_blocks" => true,
+            "trim_blocks" => true,
+            "autoescape" => false,
+            "dir" => "templates"
+        )
+        @test config2dict(ParserConfig(test_dict)) == test_dict
+    end
+
+    @testset "error" begin
+        # Test TemplateError display
+        err = TemplateError("test error message")
+        io = IOBuffer()
+        Base.showerror(io, err)
+        @test String(take!(io)) == "TemplateError: test error message"
+
+        # Test ParserError display
+        err = ParserError("test error message")
+        Base.showerror(io, err)
+        @test String(take!(io)) == "ParserError: test error message"
+
+        # Test ConfigError display
+        err = ConfigError("test error message")
+        Base.showerror(io, err)
+        @test String(take!(io)) == "ConfigError: test error message"
+    end
+
     result = ""
     
     # When initializing variables directly
