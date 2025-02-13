@@ -1,11 +1,5 @@
 using OteraEngine
-import OteraEngine.SafeString
-import OteraEngine.safe
-import OteraEngine.ParserError
-import OteraEngine.TemplateError
-import OteraEngine.ParserConfig
-import OteraEngine.ConfigError
-import OteraEngine.config2dict
+import OteraEngine: SafeString, safe, ParserError, TemplateError, ParserConfig, ConfigError, config2dict, quote_sql
 using Test
 
 @testset "OteraEngine.jl" begin
@@ -168,12 +162,21 @@ using Test
         @test ("morning"=>:greet3) in [f for f in OteraEngine.filters_alias]
     end
 
+    @testset "builtin filter tests" begin
+        @test quote_sql(1.234) == "1.234"
+        @test quote_sql("Hello") == "'Hello'"
+        @test quote_sql(1:3) == "1, 2, 3"
+        @test quote_sql([1, 2, 3]) == "1, 2, 3"
+        @test quote_sql(true) == "TRUE"
+        @test quote_sql([1, "c", true]) == "1, 'c', TRUE"
+    end
+
     @filter repeat say_twice(txt) = txt*txt
     tmp = Template("filter1.html")
     open("filter2.html", "r") do f
         result = read(f, String)
     end
-    @test result == tmp(init=Dict(:title=>"upper case", :test=>"Hello"))
+    @test result == tmp(init=Dict(:title=>"upper case", :test=>"Hello", :sql=>false))
 
     # macro
     tmp = Template("macro1.html")
