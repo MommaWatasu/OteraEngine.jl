@@ -56,6 +56,7 @@ variable name and filter name are separeted by `|>`. Built-in filters are follow
 - `upper`: convert variables into uppercase
 - `lower`: convert variables into lowercase
 - `safe`: protect literal html fragments (from autoescape)
+- `quote_sql`: formats array, bool, and string in SQL style
 
 You can define filters by yourself:
 ```julia
@@ -414,14 +415,13 @@ This template generate the same output as the previous example.
 ```
 
 ## Configurations
-there are 12 configurations:
+there are 11 configurations:
 - `control_block_start`: the string at the start of tmp code blocks.
 - `control_block_end` : the string at the end of tmp code blocks.
 - `expression_block_start` : the string at the start of expression blocks.
 - `expression_block_end` : the string at the end of expression blocks.
 - `comment_block_start`: the string at the start of comment blocks.
 - `comment_block_end`: the string at the end of comment block.
-- `newline`: newline character. This usually depends on OS.
 - `autospace`: the option to control space automatically.
 - `lstrip_blocks`: the option to strip left spaces.
 - `trim_blocks`: the option to remove the first newline after blocks.
@@ -435,7 +435,6 @@ and the default configuration is this:
 "expression_block_end"=>"}}",
 "comment_block_start" => "{#",
 "comment_block_end" => "#}",
-"newline" => (Sys.islinux()) ? "\n" : "\r\n",
 "autospace" => true,
 "lstrip_blocks" => false,
 "trim_blocks" => false,
