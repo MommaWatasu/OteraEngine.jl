@@ -22,12 +22,28 @@ function Base.string(str::SafeString)
     return str
 end
 
+quote_sql(x) = string(x)
+quote_sql(x::AbstractString) = "'" * x * "'"
+quote_sql(x::Bool) = x ? "TRUE" : "FALSE"
+function quote_sql(x::AbstractArray)
+    str = ""
+    for i in eachindex(x)
+        if i != lastindex(x)
+            str *= quote_sql(x[i]) * ", "
+        else
+            str *= quote_sql(x[i])
+        end
+    end
+    return str
+end
+
 filters_alias = Dict(
     "e" => :htmlesc,
     "escape" => :htmlesc,
     "upper" => :uppercase,
     "lower" => :lowercase,
     "safe" => :safe,
+    "quote_sql" => :quote_sql
 )
 
 """
