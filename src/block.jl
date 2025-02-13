@@ -20,14 +20,14 @@ function Base.push!(a::TmpBlock, v::Union{AbstractString, VariableBlock, TmpStat
     push!(a.contents, v)
 end
 
-function (TB::TmpBlock)(newline::String, autoescape::Bool)
+function (TB::TmpBlock)(autoescape::Bool)
     code = ""
     for content in TB.contents
         t = typeof(content)
         if isa(content, TmpStatement)
             code *= "$(content.st);"
         elseif isa(content, TmpBlock)
-            code *= content(newline, autoescape)
+            code *= content(autoescape)
         elseif isa(content, VariableBlock)
             if occursin("|>", content.exp)
                 exp = map(strip, split(content.exp, "|>"))
@@ -56,13 +56,13 @@ struct TmpCodeBlock
 end
 TmpCodeBlockTypes = Vector{Union{AbstractString, VariableBlock, TmpStatement, TmpBlock}}
 
-function (TCB::TmpCodeBlock)(newline::String, autoescape::Bool)
+function (TCB::TmpCodeBlock)(autoescape::Bool)
     code = ""
     for content in TCB.contents
         if isa(content, TmpStatement)
             code *= "$(content.st);"
         elseif isa(content, TmpBlock)
-            code *= content(newline, autoescape)
+            code *= content(autoescape)
         elseif isa(content, VariableBlock)
             if occursin("|>", content.exp)
                 exp = map(strip, split(content.exp, "|>"))

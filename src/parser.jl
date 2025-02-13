@@ -81,13 +81,13 @@ end
 
 # if nl is true
 # newline is also counted
-function chop_space(s::AbstractString, config::ParserConfig, nl::Bool, tail::Bool)
+function chop_space(s::AbstractString, nl::Bool, tail::Bool)
     i = 0
-    rs, newline = (tail) ? (reverse(s), reverse(config.newline)) : (s, config.newline)
+    rs, newline = (tail) ? (reverse(s), "\n\r") : (s, "\r\n")
     
     if nl
         while i < length(s)
-            if rs[i+1] == ' ' || rs[i+1:i+1] == newline
+            if rs[i+1] == ' ' || rs[i+1] == '\n'
                 i += 1
             elseif rs[i+1:min(nextind(rs, i+1), end)] == newline
                 i += 2
@@ -171,14 +171,14 @@ function parse_meta(tokens::Vector{Token}, config::ParserConfig; parse_macro::Bo
                     s = tokens2string(tokens[raw_idx[1]:raw_idx[2]], config)
                     if next_trim == ' '
                         if config.trim_blocks
-                            if s[1:1] == config.newline
+                            if s[1] == '\n'
                                 s = s[2:end]
-                            elseif s[1:min(nextind(s, 1), end)] == config.newline
+                            elseif s[1:min(nextind(s, 1), end)] == "\r\n"
                                 s = s[3:end]
                             end
                         end
                     elseif next_trim == '-'
-                        s = chop_space(s, config, true, false)
+                        s = chop_space(s, true, false)
                     end
                     next_trim = ' '
                     push!(out_tokens, s)
@@ -190,10 +190,10 @@ function parse_meta(tokens::Vector{Token}, config::ParserConfig; parse_macro::Bo
 
                 # process lstrip token
                 if lstrip_token == '-'
-                    out_tokens[end] = chop_space(out_tokens[end], config, true, true)
+                    out_tokens[end] = chop_space(out_tokens[end], true, true)
                 elseif lstrip_token == ' '
                     if config.lstrip_blocks
-                        out_tokens[end] = chop_space(out_tokens[end], config, false, true)
+                        out_tokens[end] = chop_space(out_tokens[end], false, true)
                     end
                 end
 
@@ -245,12 +245,12 @@ function parse_meta(tokens::Vector{Token}, config::ParserConfig; parse_macro::Bo
                     i += 1
                 elseif tokens[i] == :minus
                     if typeof(macro_content[end]) <: AbstractString
-                        macro_content[end] = chop_space(macro_content[end], config, true, true)
+                        macro_content[end] = chop_space(macro_content[end], true, true)
                     end
                     i += 1
                 else
                     if config.lstrip_blocks && typeof(macro_content[end]) <: AbstractString
-                        macro_content[end] = chop_space(macro_content[end], config, false, true)
+                        macro_content[end] = chop_space(macro_content[end], false, true)
                     end
                 end
                 # check format
@@ -264,8 +264,8 @@ function parse_meta(tokens::Vector{Token}, config::ParserConfig; parse_macro::Bo
                     throw(ParserError("nesting macro block is not allowed"))
                 elseif operator == "endmacro"
                     if config.autospace && typeof(macro_content[end]) <: AbstractString
-                        macro_content[1] = chop_space(macro_content[1], config, true, false)
-                        macro_content[end] = chop_space(macro_content[end], config, true, true)
+                        macro_content[1] = chop_space(macro_content[1], true, false)
+                        macro_content[end] = chop_space(macro_content[end], true, true)
                     end
                     macros[get_macro_name(macro_def)] = build_macro(macro_def, macro_content, config)
                     macro_def = ""
@@ -320,14 +320,14 @@ function parse_meta(tokens::Vector{Token}, config::ParserConfig; parse_macro::Bo
                     end
                     if next_trim == ' '
                         if config.trim_blocks
-                            if s[1:1] == config.newline
+                            if s[1] == '\n'
                                 s = s[2:end]
-                            elseif s[1:min(nextind(s, 1), end)] == config.newline
+                            elseif s[1:min(nextind(s, 1), end)] == "\r\n"
                                 s = s[3:end]
                             end
                         end
                     elseif next_trim == '-'
-                        s = chop_space(s, config, true, false)
+                        s = chop_space(s, true, false)
                     end
                     next_trim = ' '
                     push!(macro_content, s)
@@ -347,12 +347,12 @@ function parse_meta(tokens::Vector{Token}, config::ParserConfig; parse_macro::Bo
                 i += 1
             elseif tokens[i] == :minus
                 if typeof(out_tokens[end]) <: AbstractString
-                    out_tokens[end] = chop_space(out_tokens[end], config, true, true)
+                    out_tokens[end] = chop_space(out_tokens[end], true, true)
                 end
                 i += 1
             else
                 if config.lstrip_blocks && typeof(out_tokens[end]) <: AbstractString
-                    out_tokens[end] = chop_space(out_tokens[end], config, false, true)
+                    out_tokens[end] = chop_space(out_tokens[end], false, true)
                 end
             end
             # check format
@@ -465,12 +465,12 @@ function parse_meta(tokens::Vector{Token}, config::ParserConfig; parse_macro::Bo
                 i += 1
             elseif tokens[i] == :minus
                 if typeof(out_tokens[end]) <: AbstractString
-                    out_tokens[end] = chop_space(out_tokens[end], config, true, true)
+                    out_tokens[end] = chop_space(out_tokens[end], true, true)
                 end
                 i += 1
             else
                 if config.lstrip_blocks && typeof(out_tokens[end]) <: AbstractString
-                    out_tokens[end] = chop_space(out_tokens[end], config, false, true)
+                    out_tokens[end] = chop_space(out_tokens[end], false, true)
                 end
             end
             continue
@@ -485,14 +485,14 @@ function parse_meta(tokens::Vector{Token}, config::ParserConfig; parse_macro::Bo
                 end
                 if next_trim == ' '
                     if config.trim_blocks && tokens[max(i-1, 1)] in [:control_end, :comment_end]
-                        if s[1:1] == config.newline
+                        if s[1] == '\n'
                             s = s[2:end]
-                        elseif s[1:min(nextind(s, 1), end)] == config.newline
+                        elseif s[1:min(nextind(s, 1), end)] == "\r\n"
                             s = s[3:end]
                         end
                     end
                 elseif next_trim == '-'
-                    s = chop_space(s, config, true, false)
+                    s = chop_space(s, true, false)
                 end
                 next_trim = ' '
                 push!(out_tokens, s)

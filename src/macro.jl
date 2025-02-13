@@ -1,12 +1,12 @@
 function get_macro_name(macro_def::AbstractString)
-    for i in 1 : length(macro_def)
+    for i in eachindex(macro_def)
         if @inbounds macro_def[i] == '('
             return @inbounds macro_def[1:i-1]
         end
     end
 end
 function get_macro_args(macro_def::AbstractString)
-    for i in 1 : length(macro_def)
+    for i in eachindex(macro_def)
         if @inbounds macro_def[i] == '('
             return macro_def[i:end]
         end
@@ -71,7 +71,7 @@ function apply_macros(tokens::Vector{Token}, macros::Dict{String, String}, confi
             i += 1
             # check wether the block is a macro caller or not
             r = match(regex, tokens[i])
-            r == nothing && continue
+            r === nothing && continue
             !haskey(macros, r[:name]) && continue
             
             path = split(r[:name], ".")

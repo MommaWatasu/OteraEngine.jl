@@ -80,7 +80,7 @@ function Template(
     # build config
     config = build_config(dir, config_path, config)
     parse_result = parse_template(txt, config)
-    render, args = build_renderer(parse_result..., config.newline, config.autoescape)
+    render, args = build_renderer(parse_result..., config.autoescape)
     return Template(parse_result..., config, render, args)
 end
 
@@ -110,7 +110,6 @@ function build_config(dir::String, config_path::String, config::Dict{String, K})
         "expression_block_end"=>"}}",
         "comment_block_start" => "{#",
         "comment_block_end" => "#}",
-        "newline" => (Sys.islinux()) ? "\n" : "\r\n",
         "autospace" => true,
         "lstrip_blocks" => true,
         "trim_blocks" => true,
@@ -335,17 +334,17 @@ function _walk(expr::Any, defined::Set{Symbol})
 end
 
 
-build_renderer(_::Nothing, elements::CodeBlockVector, _::Vector{TmpBlock}, newline::String, autoescape::Bool) = build_renderer(elements, newline, autoescape)
-function build_renderer(super::ExtendTemplate, _::CodeBlockVector, blocks::Vector{TmpBlock}, newline::String, autoescape::Bool)
+build_renderer(_::Nothing, elements::CodeBlockVector, _::Vector{TmpBlock}, autoescape::Bool) = build_renderer(elements, autoescape)
+function build_renderer(super::ExtendTemplate, _::CodeBlockVector, blocks::Vector{TmpBlock}, autoescape::Bool)
     blocks = inherite_blocks(blocks, super.blocks)
     if super.super !== nothing
-        return build_renderer(super.super, super.elements, blocks, newline, autoescape)
+        return build_renderer(super.super, super.elements, blocks, autoescape)
     end
     elements = apply_inheritance(super.elements, blocks)
-    build_renderer(elements, newline, autoescape)
+    build_renderer(elements, autoescape)
 end
 
-function build_renderer(elements::CodeBlockVector, newline::String, autoescape::Bool)
+function build_renderer(elements::CodeBlockVector, autoescape::Bool)
     render = quote
         txt = ""
     end
@@ -353,9 +352,9 @@ function build_renderer(elements::CodeBlockVector, newline::String, autoescape::
         if typeof(e) <: AbstractString
             push!(render.args, :(txt *= $e))
         elseif isa(e, TmpCodeBlock)
-            push!(render.args, e(newline, autoescape))
+            push!(render.args, e(autoescape))
         elseif isa(e, TmpBlock)
-            push!(render.args, e(newline, autoescape))
+            push!(render.args, e(autoescape))
         elseif isa(e, VariableBlock)
             if occursin("|>", e.exp)
                 exp = map(strip, split(e.exp, "|>"))
