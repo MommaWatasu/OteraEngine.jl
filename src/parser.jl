@@ -87,10 +87,10 @@ function chop_space(s::AbstractString, nl::Bool, tail::Bool)
     
     if nl
         while i < length(s)
-            if rs[i+1] == ' ' || rs[i+1] == '\n'
-                i += 1
-            elseif rs[i+1:min(nextind(rs, i+1), end)] == newline
+            if rs[i+1:min(nextind(rs, i+1), end)] == newline
                 i += 2
+            elseif rs[i+1] == ' ' || rs[i+1] == '\n'
+                i += 1
             else
                 break
             end
