@@ -360,7 +360,7 @@ function build_renderer(elements::CodeBlockVector, autoescape::Bool)
                 exp = map(strip, split(e.exp, "|>"))
                 f = filters_alias[exp[2]]
                 if autoescape && f != htmlesc
-                    push!(render.args, :(txt *= htmlesc($f(string($(Symbol(exp[1])))))))
+                    push!(render.args, :(txt *= htmlesc(string($f($(Symbol(exp[1])))))))
                 else
                     push!(render.args, :(txt *= $f(string($(Symbol(exp[1]))))))
                 end

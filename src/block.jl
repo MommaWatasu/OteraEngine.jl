@@ -33,9 +33,9 @@ function (TB::TmpBlock)(autoescape::Bool)
                 exp = map(strip, split(content.exp, "|>"))
                 f = filters_alias[exp[2]]
                 if autoescape && f != htmlesc
-                    code *= "txt *= htmlesc($(string(f))(string($(exp[1]))));"
+                    code *= "txt *= htmlesc(string($(string(f))($(exp[1]))));"
                 else
-                    code *= "txt *= $(string(f))(string($(content.exp[1])));"
+                    code *= "txt *= string($(string(f))($(content.exp[1])));"
                 end
             else
                 if autoescape
@@ -68,9 +68,9 @@ function (TCB::TmpCodeBlock)(autoescape::Bool)
                 exp = map(strip, split(content.exp, "|>"))
                 f = filters_alias[exp[2]]
                 if autoescape && f != htmlesc
-                    code *= "txt *= htmlesc($(string(f))(string($(content.exp))));"
+                    code *= "txt *= htmlesc(string($(string(f))($(content.exp))));"
                 else
-                    code *= "txt *= $(string(f))(string($(content.exp)));"
+                    code *= "txt *= string($(string(f))($(content.exp)));"
                 end
             else
                 if autoescape
