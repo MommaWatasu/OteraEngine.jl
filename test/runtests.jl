@@ -169,6 +169,20 @@ using Test
         @test quote_sql([1, 2, 3]) == "1, 2, 3"
         @test quote_sql(true) == "TRUE"
         @test quote_sql([1, "c", true]) == "1, 'c', TRUE"
+
+        # with autoescape
+        tmp = Template("{{ sql |> quote_sql }}", path = false)
+        @test tmp(init=Dict(:sql=>false)) == "FALSE"
+        @test tmp(init=Dict(:sql=>1)) == "1"
+        @test tmp(init=Dict(:sql=>1:3)) == "1, 2, 3"
+        @test tmp(init=Dict(:sql=>"Hello")) == "&#39;Hello&#39;"
+
+        # without autoescape
+        tmp = Template("{{ sql |> quote_sql }}", path=false, config=Dict("autoescape"=>false))
+        @test tmp(init=Dict(:sql=>false)) == "FALSE"
+        @test tmp(init=Dict(:sql=>1)) == "1"
+        @test tmp(init=Dict(:sql=>1:3)) == "1, 2, 3"
+        @test tmp(init=Dict(:sql=>"Hello")) == "'Hello'"
     end
 
     @filter repeat say_twice(txt) = txt*txt
