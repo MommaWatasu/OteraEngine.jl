@@ -362,7 +362,7 @@ function build_renderer(elements::CodeBlockVector, autoescape::Bool)
                 if autoescape && f != htmlesc
                     push!(render.args, :(txt *= htmlesc(string($f($(Symbol(exp[1])))))))
                 else
-                    push!(render.args, :(txt *= $f(string($(Symbol(exp[1]))))))
+                    push!(render.args, :(txt *= string($f($(Symbol(exp[1]))))))
                 end
             else
                 if autoescape
