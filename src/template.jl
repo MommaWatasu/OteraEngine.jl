@@ -93,7 +93,9 @@ function (temp::Template)(; init::Dict{Symbol, T} = Dict{Symbol, Any}()) where {
             throw(TemplateError("insufficient variable: $(string(sym))"))
         end
     end
-    return string(lstrip(temp.render(args...)))
+    
+    rendered = Base.invokelatest(temp.render, args...)
+    return string(lstrip(rendered))
 end
 
 function build_config(dir::String, config_path::String, config::Dict{String, K}) where {K}
