@@ -346,6 +346,26 @@ function build_renderer(super::ExtendTemplate, _::CodeBlockVector, blocks::Vecto
     build_renderer(elements, autoescape)
 end
 
+#=
+#     build_renderer(elements::CodeBlockVector, autoescape::Bool)
+#
+# This function builds a renderer function for the given elements and autoescape setting.
+# It constructs a function that takes a variable number of arguments and returns a string.
+# The function iterates over the elements and generates code to concatenate strings.
+#
+# The function handles different types of elements:
+#   - AbstractString: Appends the string to the result.
+#   - TmpCodeBlock: Calls the block with the autoescape setting.
+#   - TmpBlock: Calls the block with the autoescape setting.
+#   - VariableBlock: Handles variable expressions, applying filters if necessary.
+#   - SuperBlock: Throws an error if encountered.
+#
+# The function returns a tuple containing the generated renderer function and a set of undefined symbols.
+# The undefined symbols are collected during the construction of the renderer function.
+# The renderer function is defined using `Expr(:->, ...)` and takes a tuple of arguments.
+# The renderer function is constructed using `eval` to create a callable function.
+# The filters are defined in the `filters_alias` dictionary, which maps filter names to their corresponding functions.
+=#
 function build_renderer(elements::CodeBlockVector, autoescape::Bool)
     render = quote
         txt = ""
