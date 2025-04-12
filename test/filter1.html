@@ -5,5 +5,14 @@
     <body>
         {{ test |> repeat }}
         {{ sql |> quote_sql }}
+        {% for i in 1 : 2 %}
+        {{ "<em>" |> e }}
+        {{ "<em></em>" |> safe }}
+        {{ "Hello" |> upper }}
+        {% end %}
+        {% block test %}
+        {{ "<em>" |> e }}
+        {{ "<em></em>" |> safe }}
+        {% endblock %}
     </body>
 </html>
