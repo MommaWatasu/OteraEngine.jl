@@ -174,6 +174,12 @@ end
 function _walk(expr::Any, defined::Set{Symbol})
     # 1) If `expr` is just a Symbol
     if isa(expr, Symbol)
+        # Ignore common built-in types/values that might appear as symbols in ASTs
+        # but are not variables we'd pass from `init`.
+        # This list might need refinement based on OteraEngine's AST generation.
+        if expr in (:nothing, :true, :false, :Int, :String, :Any, :Symbol, :Expr)
+             return (Set{Symbol}(), defined)
+        end
         if expr in defined
             return (Set{Symbol}(), defined)  # No new undefined symbol, no change in defined set
         else
@@ -199,23 +205,33 @@ function _walk(expr::Any, defined::Set{Symbol})
                 local_defined = union(defined_after_rhs, Set([lhs]))
                 # We do not add the LHS to the 'used' set because it’s being defined here
                 return (used_rhs, local_defined)
+            elseif isa(lhs, Expr) && lhs.head === :tuple # Destructuring assignment: (a,b) = ...
+                used_lhs_expr, defined_after_lhs_expr = _walk(lhs, defined_after_rhs) # Walk the tuple expr itself if complex
+                used_total = union(used_rhs, used_lhs_expr)
+                local_defined = copy(defined_after_lhs_expr) # Start with what _walk for tuple returned
+                for var_in_tuple in lhs.args
+                    if isa(var_in_tuple, Symbol)
+                        push!(local_defined, var_in_tuple) # Add each symbol to defined set
+                    end
+                end
+                return (used_total, local_defined)
             else
-                # LHS might be an Expr, e.g., (x, y) = something
-                used_lhs, defined_after_lhs = _walk(lhs, defined_after_rhs)
-                # Combine undefined symbols from LHS and RHS
-                used_total = union(used_rhs, used_lhs)
-                return (used_total, defined_after_lhs)
+                # Other complex LHS, e.g., array indexing A[i] = ...
+                # The LHS itself might contain used variables (like A and i)
+                used_lhs_expr, defined_after_lhs_expr = _walk(lhs, defined_after_rhs)
+                used_total = union(used_rhs, used_lhs_expr)
+                # For A[i]=v, A and i are used, not defined in the `defined_after_lhs_expr` sense for new scope.
+                # `defined_after_lhs_expr` would be same as `defined_after_rhs` unless LHS walk changes it.
+                return (used_total, defined_after_rhs) # LHS of A[i]=v doesn't create new scope vars like plain `a=v`
             end
 
         # 2.2) If block: multiple statements in a row
         elseif h === :block
-            # For example: quote
-            #     statement1
-            #     statement2
-            # end
             used_total = Set{Symbol}()
             local_defined = copy(defined)
             for st in expr.args
+                # Skip `nothing` which can appear in blocks (e.g., from Meta.parse(";;"))
+                st === nothing && continue 
                 used_st, local_defined = _walk(st, local_defined)
                 used_total = union(used_total, used_st)
             end
@@ -223,114 +239,212 @@ function _walk(expr::Any, defined::Set{Symbol})
 
         # 2.3) if expression
         elseif h === :if
-            # if cond
-            #   then_block
-            # [elseif ...]
-            # [else ...]
-            # end
-            # The `if` does not introduce a new scope, so each branch inherits the same 'defined'
             used_total = Set{Symbol}()
-            local_defined = copy(defined)
-            for subexpr in expr.args
-                used_sub, local_defined = _walk(subexpr, local_defined)
-                used_total = union(used_total, used_sub)
+            # `if` conditions and branches don't create a new scope that persists *after* the if.
+            # Variables defined inside `if` are local to their branch.
+            # All parts of the `if` expression are evaluated in the `defined` scope.
+            # We need to collect `used` from all branches and the condition.
+            # The `new_defined` returned should be the original `defined` set.
+            
+            # Condition
+            used_cond, _ = _walk(expr.args[1], defined)
+            used_total = union(used_total, used_cond)
+            
+            # Then-branch
+            used_then, _ = _walk(expr.args[2], defined) # Vars defined in `then` don't escape
+            used_total = union(used_total, used_then)
+            
+            # Else-branch (if present)
+            if length(expr.args) == 3
+                used_else, _ = _walk(expr.args[3], defined) # Vars defined in `else` don't escape
+                used_total = union(used_total, used_else)
             end
-            return (used_total, local_defined)
+            return (used_total, defined) # `defined` set is unchanged by the if block itself for outer scope
 
         # 2.4) for loop
         elseif h === :for
-            # for i in iter
-            #   body...
-            # end
-            # Typically e.args[1] = Expr(:in, i, iter)
-            # e.args[2..end] = the body
             used_total = Set{Symbol}()
-            local_defined = copy(defined)
+            # `local_defined_outer` is the scope before the for loop.
+            local_defined_outer = defined
 
             if !isempty(expr.args) && isa(expr.args[1], Expr) && expr.args[1].head === :(=)
-                i, iter_expr = expr.args[1].args
-                # (a) Walk the iteration source
-                used_iter, defined_iter = _walk(iter_expr, local_defined)
+                assignment_expr = expr.args[1] # e.g., Expr(:(=), :i, :iterable) or Expr(:(=), (:i,:j), :iterable)
+                loop_vars_expr = assignment_expr.args[1] 
+                iter_expr = assignment_expr.args[2]
+
+                used_iter, _ = _walk(iter_expr, local_defined_outer) # Iterable is in outer scope
                 used_total = union(used_total, used_iter)
 
-                # (b) If `i` is a symbol, define it within this for-loop scope
-                for_defined = copy(defined_iter)
-                if isa(i, Symbol)
-                    push!(for_defined, i)
+                # Scope for the loop body: outer scope + loop variable(s)
+                defined_for_body = copy(local_defined_outer)
+                if isa(loop_vars_expr, Symbol)
+                    push!(defined_for_body, loop_vars_expr)
+                elseif isa(loop_vars_expr, Expr) && loop_vars_expr.head === :tuple 
+                    for loop_var in loop_vars_expr.args
+                        if isa(loop_var, Symbol)
+                            push!(defined_for_body, loop_var)
+                        end
+                    end
                 end
-
-                # (c) Walk the body
-                # e.args[2..end] is the block inside the for
-                used_body = Set{Symbol}()
-                for b in expr.args[2:end]
-                    used_b, for_defined = _walk(b, for_defined)
-                    used_body = union(used_body, used_b)
-                end
-
+                
+                # Walk the body (expr.args[2] is the block)
+                used_body, _ = _walk(expr.args[2], defined_for_body) 
                 used_total = union(used_total, used_body)
-                return (used_total, local_defined)  # `local_defined` might not add `i` outside
+                
+                return (used_total, local_defined_outer)  # Loop variables don't escape the for loop
             else
-                # If this for is in an unexpected form, just traverse everything
+                # Fallback for other `for` forms or if AST is unexpected
                 for subexpr in expr.args
-                    used_sub, local_defined = _walk(subexpr, local_defined)
+                    used_sub, _ = _walk(subexpr, local_defined_outer)
                     used_total = union(used_total, used_sub)
                 end
-                return (used_total, local_defined)
+                return (used_total, local_defined_outer)
             end
 
-        # 2.5) let expression
+        # 2.5) let expression (MODIFIED for strict parallel RHS analysis)
         elseif h === :let
-            # let x = expr, y = expr, ...
-            #   body...
-            # end
-            # Inside this let block, x, y, etc. are newly defined
             used_total = Set{Symbol}()
-            local_defined = copy(defined)
+            
+            # This scope is for evaluating ALL RHS expressions in the let block.
+            # It is the scope *before* any variables from this let block are defined.
+            defined_for_all_rhs_analysis = defined 
 
-            if expr.args[1].head == :block
-                # If there are multiple definition statements, each one is like a normal assignment
-                for def_ex in expr.args[1].args
-                    push!(local_defined, def_ex.args[1])
+            # This scope is for evaluating the BODY of the let block.
+            # It starts as the outer scope, then gets augmented with the LHS variables from this let block.
+            defined_for_body_walk = copy(defined)
+
+            assignments_arg = expr.args[1] # This is Expr(:(=), var, val) or Expr(:block, assign1, assign2)
+            body_arg = expr.args[2]
+
+            lhs_vars_in_let = Symbol[] # To store LHS symbols defined in this let
+
+            if isa(assignments_arg, Expr) && assignments_arg.head === :block
+                # Multiple assignments: e.g., let a=x, b=y; body end
+                for assign_expr in assignments_arg.args
+                    if assign_expr === nothing # Skip if it's just `nothing` from parsing like `let ; body end`
+                        continue
+                    end
+                    if isa(assign_expr, Expr) && assign_expr.head === :(=)
+                        lhs = assign_expr.args[1]
+                        rhs = assign_expr.args[2]
+                        
+                        # Analyze RHS using the scope *before* this let block's own definitions
+                        used_from_rhs, _ = _walk(rhs, defined_for_all_rhs_analysis)
+                        used_total = union(used_total, used_from_rhs)
+                        
+                        if isa(lhs, Symbol)
+                            push!(lhs_vars_in_let, lhs)
+                        # TODO: Handle tuple destructuring on LHS if OteraEngine supports `let (a,b) = ...`
+                        # elseif isa(lhs, Expr) && lhs.head === :tuple ...
+                        end
+                    else
+                        # If not an assignment, it might be a stray expression. Walk it in outer scope.
+                        used_stray, _ = _walk(assign_expr, defined_for_all_rhs_analysis)
+                        used_total = union(used_total, used_stray)
+                    end
                 end
-            else
-                # If there is only one definition statement, it must be like a normal assignment
-                def_ex = expr.args[1]
-                push!(local_defined, def_ex.args[1])
+            elseif isa(assignments_arg, Expr) && assignments_arg.head === :(=)
+                # Single assignment: e.g., let a=x; body end
+                lhs = assignments_arg.args[1]
+                rhs = assignments_arg.args[2]
+
+                # Analyze RHS using the scope *before* this let block's own definitions
+                used_from_rhs, _ = _walk(rhs, defined_for_all_rhs_analysis)
+                used_total = union(used_total, used_from_rhs)
+
+                if isa(lhs, Symbol)
+                    push!(lhs_vars_in_let, lhs)
+                # TODO: Handle tuple destructuring on LHS
+                end
+            elseif assignments_arg !== nothing # If assignments_arg is not an Expr, but also not nothing (e.g. a Symbol)
+                # This case means `let some_symbol; body; end`, which is unusual for variable binding.
+                # Treat `some_symbol` as if it's part of the body, walked with outer scope.
+                # Or, if it's meant to be `let some_symbol=true; body; end` this needs parser change.
+                # For now, assume it's an expression to be walked.
+                used_stray, _ = _walk(assignments_arg, defined_for_all_rhs_analysis)
+                used_total = union(used_total, used_stray)
             end
 
-            # Walk the let used_body
-            used_body, _ = _walk(expr.args[2], local_defined)
-
-            used_total = union(used_total, used_body)
+            # Add all collected LHS variables to the scope for the body
+            for lhs_var in lhs_vars_in_let
+                push!(defined_for_body_walk, lhs_var)
+            end
+            
+            # Walk the body of the let block
+            used_from_body, _ = _walk(body_arg, defined_for_body_walk)
+            used_total = union(used_total, used_from_body)
+            
+            # Definitions in `let` do not escape to the `new_defined` set for the outer scope.
             return (used_total, defined)
 
         # 2.6) Function call
         elseif h === :call
             used_total = Set{Symbol}()
-            local_defined = copy(defined)
-            # ignore the symbol representing the function
-            for (i, subexpr) in enumerate(expr.args)
-                if i > 1
-                    used_sub, local_defined = _walk(subexpr, local_defined)
+            
+            # expr.args[1] is the function being called.
+            # If it's a Symbol (e.g., :my_func), it could be an undefined variable or a known function.
+            # If it's an Expr (e.g., (get_func()).()), walk it.
+            if !isa(expr.args[1], Symbol) 
+                 used_func_expr, _ = _walk(expr.args[1], defined)
+                 used_total = union(used_total, used_func_expr)
+            elseif !(expr.args[1] in defined) && !(isdefined(Main, expr.args[1]) || expr.args[1] in (:string, :htmlesc, :uppercase, :lowercase, :+, :-, :*, :/, :<, :>, :(==))) # Check if it's a known global/builtin
+                # If it's a symbol, not defined locally, and not a common global/operator, it might be a user variable used as function.
+                # This is heuristic. A more robust way would be to have a list of known "safe" functions.
+                # For now, if it's a symbol like `my_custom_func_var` and not defined, treat it as used.
+                # This part is tricky; Otera's filters are handled differently.
+                # Let's assume function names that are symbols are generally not what we are tracking as `init` vars.
+                # The original logic `!isa(expr.args[1], Symbol)` was safer.
+                # Reverting to: if it's a symbol, we assume it's a function name and don't add to `used_total` here.
+                # If it's an expression, it might contain variables.
+                # No, the original `!isa(expr.args[1], Symbol)` means if it *is* a symbol, it's skipped.
+                # If it's an Expr like `(obj.method)(args)`, then `obj.method` is walked.
+                # This is correct.
+            end
+
+
+            # Walk arguments of the call
+            for i in 2:length(expr.args) 
+                used_arg, _ = _walk(expr.args[i], defined) 
+                used_total = union(used_total, used_arg)
+            end
+            return (used_total, defined) # No new definitions from a simple call for the outer scope
+
+        # 2.7) Other expression types
+        else
+            used_total = Set{Symbol}()
+            
+            if h === :. && length(expr.args) == 2 && isa(expr.args[1], Symbol) && isa(expr.args[2], QuoteNode)
+                # Specifically for variable.field like job.id -> Expr(:., :job, QuoteNode(:id))
+                # We only care if :job (expr.args[1]) is defined. QuoteNode is not a variable.
+                used_base, _ = _walk(expr.args[1], defined)
+                used_total = union(used_total, used_base)
+                return (used_total, defined)
+            elseif h === :ref && length(expr.args) >= 2 # For array[index] or dict[key]
+                # First arg is the collection (e.g., :my_array), others are indices/keys.
+                # Walk the collection
+                used_collection, _ = _walk(expr.args[1], defined)
+                used_total = union(used_total, used_collection)
+                # Walk indices/keys
+                for i in 2:length(expr.args)
+                    used_idx, _ = _walk(expr.args[i], defined)
+                    used_total = union(used_total, used_idx)
+                end
+                return (used_total, defined)
+            else
+                # Generic traversal for other Expr types if not specifically handled
+                # Each subexpression is evaluated in the same `defined` scope.
+                for subexpr in expr.args
+                    if subexpr === nothing continue end # Skip `nothing`
+                    used_sub, _ = _walk(subexpr, defined) # `defined` set does not change for siblings
                     used_total = union(used_total, used_sub)
                 end
+                return (used_total, defined) 
             end
-            return (used_total, local_defined)
-
-        # 2.7) Other expression types (function calls, etc.)
-        else
-            # No new scope. Just traverse subexpressions.
-            used_total = Set{Symbol}()
-            local_defined = copy(defined)
-            for subexpr in expr.args
-                used_sub, local_defined = _walk(subexpr, local_defined)
-                used_total = union(used_total, used_sub)
-            end
-            return (used_total, local_defined)
         end
 
+    # 3) If `expr` is a literal (integer, string, float, bool, QuoteNode etc.)
+    #    or other non-Symbol, non-Expr types.
     else
-        # 3) If `expr` is a literal (integer, string, float, bool, etc.)
         return (Set{Symbol}(), defined)
     end
 end
