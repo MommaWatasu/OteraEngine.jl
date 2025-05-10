@@ -379,18 +379,25 @@ function build_renderer(elements::CodeBlockVector, autoescape::Bool)
             push!(render.args, e(autoescape))
         elseif isa(e, VariableBlock)
             if occursin("|>", e.exp)
-                exp = map(strip, split(e.exp, "|>"))
-                f = filters_alias[exp[2]]
+                exp_parts = map(strip, split(e.exp, "|>"))
+                var_expr_str = exp_parts[1]
+                filter_name_str = exp_parts[2]
+                
+                f = filters_alias[filter_name_str]
+                # MODIFIED: Use Meta.parse for the variable part of the expression
+                parsed_var_expr = Meta.parse(var_expr_str)
                 if autoescape && f != htmlesc
-                    push!(render.args, :(txt *= htmlesc(string($f($(Symbol(exp[1])))))))
+                    push!(render.args, :(txt *= htmlesc(string($f($parsed_var_expr)))))
                 else
-                    push!(render.args, :(txt *= string($f($(Symbol(exp[1]))))))
+                    push!(render.args, :(txt *= string($f($parsed_var_expr))))
                 end
             else
+                # MODIFIED: Use Meta.parse for the expression
+                parsed_expr = Meta.parse(e.exp)
                 if autoescape
-                    push!(render.args, :(txt *= htmlesc(string($(Symbol(e.exp))))))
+                    push!(render.args, :(txt *= htmlesc(string($parsed_expr))))
                 else
-                    push!(render.args, :(txt *= string($(Symbol(e.exp)))))
+                    push!(render.args, :(txt *= string($parsed_expr)))
                 end
             end
         elseif isa(e, SuperBlock)
