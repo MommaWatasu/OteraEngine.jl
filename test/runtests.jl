@@ -1,5 +1,5 @@
 using OteraEngine
-import OteraEngine: SafeString, safe, ParserError, TemplateError, ParserConfig, ConfigError, config2dict, quote_sql
+import OteraEngine: SafeString, safe, ParserError, TemplateError, ParserConfig, ConfigError, config2dict, quote_sql, undefined_symbols
 using Test
 
 @testset "OteraEngine.jl" begin
@@ -53,6 +53,84 @@ using Test
         err = ConfigError("test error message")
         Base.showerror(io, err)
         @test String(take!(io)) == "ConfigError: test error message"
+    end
+
+    @testset "test undefined_symbols" begin
+        # Basic cases
+        @test undefined_symbols(1) == Set{Symbol}()
+        @test undefined_symbols("hello") == Set{Symbol}()
+        @test undefined_symbols(:(:quoted_symbol)) == Set{Symbol}() # QuoteNode
+        @test undefined_symbols(:x) == Set([:x])
+        @test undefined_symbols(:(true)) == Set{Symbol}() # Known symbol
+        @test undefined_symbols(:(nothing)) == Set{Symbol}() # Known symbol
+
+        # Assignment
+        @test undefined_symbols(:(a = 1)) == Set{Symbol}()
+        @test undefined_symbols(:(a = b)) == Set([:b])
+        @test undefined_symbols(:(a = a)) == Set([:a]) # RHS 'a' is undefined before this statement
+        # For a += b, 'a' is read and written, 'b' is read.
+        # If 'a' is not defined before, both 'a' and 'b' are undefined.
+        @test_broken undefined_symbols(:(a += b)) == Set([:a, :b])
+        @test undefined_symbols(:(a[i] = x)) == Set([:a, :i, :x])
+        @test_broken undefined_symbols(:((x,y) = z)) == Set([:z])
+
+        # Blocks
+        @test undefined_symbols(:(begin a = 1; b = a end)) == Set{Symbol}()
+        @test undefined_symbols(:(begin a = x; b = a end)) == Set([:x])
+        @test undefined_symbols(:(begin b = a; a = 1 end)) == Set([:a])
+        @test undefined_symbols(:(begin x; y end)) == Set([:x, :y])
+
+        # If statements
+        @test undefined_symbols(:(if cond; then_expr; else else_expr end)) == Set([:cond, :then_expr, :else_expr])
+        @test undefined_symbols(:(if true; x; else y end)) == Set([:x, :y])
+        @test undefined_symbols(:(if cond; a=1; else b=2 end)) == Set([:cond]) # a,b defined locally
+        @test undefined_symbols(:(if (begin c = c_val; c end); x; else y end)) == Set([:c_val, :x, :y])
+
+        # For loops (assuming standard interpretation: i is local, iter is evaluated in outer scope)
+        # Note: Current _walk implementation for :for is very basic and likely won't pass these.
+        @test_broken undefined_symbols(:(for i = iter; use(i) end)) == Set([:iter, :use])
+        @test_broken undefined_symbols(:(for i = 1:N; use(i) end)) == Set([:N, :use])
+        @test undefined_symbols(:(for i = 1:3; x = i end)) == Set{Symbol}() # x is defined and used locally
+
+        # Let blocks (assuming standard interpretation: vars are local, RHS evaluated in outer scope or sequentially)
+        # The "strict parallel RHS analysis" implies RHS see scope *before* let-vars.
+        # Note: Current _walk implementation for :let is incomplete.
+        @test undefined_symbols(:(let x = 1; y = x; x + y end)) == Set{Symbol}()
+        @test undefined_symbols(:(let x = ext; y = x; x + y end)) == Set([:ext])
+        @test undefined_symbols(:(let x = val_x, y = val_y; x + y + z end)) == Set([:val_x, :val_y, :z])
+        # Test for "strict parallel RHS": y = x where x is from *outer* scope, not the x = 1 in the same let.
+        @test undefined_symbols(:(let x = 1, y = x_outer; x + y end)) == Set([:x_outer])
+
+
+        # Function calls
+        # Note: Current _walk for :call has an empty block for undefined function symbols.
+        @test_broken undefined_symbols(:(f(a,b))) == Set([:f, :a, :b])
+        @test undefined_symbols(:(string(a))) == Set([:a]) # string is known
+        @test undefined_symbols(:(+(a,b))) == Set([:a, :b]) # + is known
+        @test_broken undefined_symbols(:((get_func())(arg))) == Set([:get_func, :arg])
+        @test undefined_symbols(:(obj.field)) == Set([:obj]) # obj is used, field is a property
+        @test undefined_symbols(:(mod.func(x))) == Set([:mod, :x]) # Assuming mod.func is not simply isdefined(Main, :mod)
+
+        # More complex nested structures
+        @test_broken undefined_symbols(:(
+            begin
+                a = val_a
+                let x = a, y = val_y
+                    if x > 10
+                        z = f1(x, y)
+                    else
+                        z = f2(val_z)
+                    end
+                    res = z
+                end
+            end
+        )) == Set([:val_a, :val_y, :f1, :f2, :val_z])
+
+        # Test case from a user comment (adapted)
+        # `let` RHS are analyzed in outer scope. `let` body uses `let`-defined vars.
+        # `if` branches use their surrounding scope. Vars defined in `if` are local to branch.
+        # Final `c` is not defined by `if` or `let` in its scope.
+        @test undefined_symbols(:(let a=x; if cond; c_in_if=1; else; c_in_if=2; end; c_final end)) == Set([:x, :cond, :c_final])
     end
 
     result = ""
