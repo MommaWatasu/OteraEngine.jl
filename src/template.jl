@@ -434,6 +434,30 @@ function _walk(expr::Any, defined::Set{Symbol})
                 end
             end
             return (used_total, local_defined)
+        
+        #=
+        elseif h === :call
+            used_total = Set{Symbol}()
+
+            # expr.args[1] is the function being called.
+            # If it's a Symbol (e.g., :my_func), it could be an undefined variable or a known function.
+            # If it's an Expr (e.g., (get_func()).()), walk it.
+            if !isa(expr.args[1], Symbol) 
+                 used_func_expr, _ = _walk(expr.args[1], defined)
+                 used_total = union(used_total, used_func_expr)
+            elseif !(expr.args[1] in defined) && !(isdefined(Main, expr.args[1]) || expr.args[1] in (:string, :htmlesc, :uppercase, :lowercase, :+, :-, :*, :/, :<, :>, :(==))) # Check if it's a known global/builtin
+                # If it's a symbol, not defined locally, and not a common global/operator, it might be a user variable used as function.
+                # This is heuristic. A more robust way would be to have a list of known "safe" functions.
+                # For now, if it's a symbol like `my_custom_func_var` and not defined, treat it as used.
+                # This part is tricky; Otera's filters are handled differently.
+                # Let's assume function names that are symbols are generally not what we are tracking as `init` vars.
+                # The original logic `!isa(expr.args[1], Symbol)` was safer.
+                # Reverting to: if it's a symbol, we assume it's a function name and don't add to `used_total` here.
+                # If it's an expression, it might contain variables.
+                # No, the original `!isa(expr.args[1], Symbol)` means if it *is* a symbol, it's skipped.
+                # If it's an Expr like `(obj.method)(args)`, then `obj.method` is walked.
+                # This is correct.
+        =#
 
         # 2.7) Other expression types
         else
