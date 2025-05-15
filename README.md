@@ -8,6 +8,9 @@
 |:------------:|:------:|:--------:|
 |[![CI][CI-img]][CI-url] |[![codecov][codecov-img]][codecov-url]|[![docs dev][docs-dev-img]][docs-dev-url] [![docs stable][docs-stable-img]][docs-stable-url]|
 
+> [!NOTE]
+> In this year, I have no time to maintain this package by myself. So, if you find some bug, please create a PR(I'll merge it and release patch release soon). 
+
 ## Abstract
 This is the template engine for JuliaLang.
 features
