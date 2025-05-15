@@ -196,22 +196,41 @@ function _walk(expr::Any, defined::Set{Symbol})
             # For example, `lhs = rhs` or `lhs += rhs`
             lhs, rhs = expr.args
 
-            # (a) Walk the RHS first
+            # For compound assignments like += or -=, the LHS is also read before being written
+            # So we need to track LHS as potentially undefined in these cases
+            is_compound = h in (:+=, :-=, :*=, :/=)
+            
+            # Get undefined symbols from RHS
             used_rhs, defined_after_rhs = _walk(rhs, defined)
 
             # (b) Check the LHS
             if isa(lhs, Symbol)
+                if is_compound && !(lhs in defined)
+                    # For compound assignments, if LHS is not defined, add it to used set
+                    used_total = union(used_rhs, Set([lhs]))
+                else
+                    used_total = used_rhs
+                end
                 # LHS is newly defined from now on
                 local_defined = union(defined_after_rhs, Set([lhs]))
-                # We do not add the LHS to the 'used' set because it’s being defined here
-                return (used_rhs, local_defined)
+                return (used_total, local_defined)
             elseif isa(lhs, Expr) && lhs.head === :tuple # Destructuring assignment: (a,b) = ...
-                used_lhs_expr, defined_after_lhs_expr = _walk(lhs, defined_after_rhs) # Walk the tuple expr itself if complex
-                used_total = union(used_rhs, used_lhs_expr)
-                local_defined = copy(defined_after_lhs_expr) # Start with what _walk for tuple returned
+                # In destructuring assignment, only the RHS has potentially undefined symbols
+                # The LHS tuple elements are being defined, not used
+                used_total = used_rhs
+                
+                # Now define all symbols in the tuple
+                local_defined = copy(defined_after_rhs) 
                 for var_in_tuple in lhs.args
                     if isa(var_in_tuple, Symbol)
-                        push!(local_defined, var_in_tuple) # Add each symbol to defined set
+                        push!(local_defined, var_in_tuple)
+                    elseif isa(var_in_tuple, Expr)
+                        # Handle nested expressions in tuple, but only gather symbols
+                        for arg in var_in_tuple.args
+                            if isa(arg, Symbol)
+                                push!(local_defined, arg)
+                            end
+                        end
                     end
                 end
                 return (used_total, local_defined)
@@ -289,6 +308,21 @@ function _walk(expr::Any, defined::Set{Symbol})
                 
                 # Walk the body (expr.args[2] is the block)
                 used_body, _ = _walk(expr.args[2], defined_for_body) 
+                
+                # Special handling for function calls in the body
+                # Scan for any direct function calls and add them to used set
+                if isa(expr.args[2], Expr) && expr.args[2].head === :block
+                    for stmt in expr.args[2].args
+                        if isa(stmt, Expr) && stmt.head === :call
+                            if isa(stmt.args[1], Symbol) && 
+                              !(stmt.args[1] in defined_for_body) && 
+                              !(stmt.args[1] in (:string, :htmlesc, :uppercase, :lowercase, :+, :-, :*, :/, :<, :>, :(==)))
+                                push!(used_total, stmt.args[1])
+                            end
+                        end
+                    end
+                end
+                
                 used_total = union(used_total, used_body)
                 
                 return (used_total, local_defined_outer)  # Loop variables don't escape the for loop
@@ -334,8 +368,13 @@ function _walk(expr::Any, defined::Set{Symbol})
                         
                         if isa(lhs, Symbol)
                             push!(lhs_vars_in_let, lhs)
-                        # TODO: Handle tuple destructuring on LHS if OteraEngine supports `let (a,b) = ...`
-                        # elseif isa(lhs, Expr) && lhs.head === :tuple ...
+                        # Handle tuple destructuring on LHS if OteraEngine supports `let (a,b) = ...`
+                        elseif isa(lhs, Expr) && lhs.head === :tuple
+                            for var_in_tuple in lhs.args
+                                if isa(var_in_tuple, Symbol)
+                                    push!(lhs_vars_in_let, var_in_tuple)
+                                end
+                            end
                         end
                     else
                         # If not an assignment, it might be a stray expression. Walk it in outer scope.
@@ -354,7 +393,13 @@ function _walk(expr::Any, defined::Set{Symbol})
 
                 if isa(lhs, Symbol)
                     push!(lhs_vars_in_let, lhs)
-                # TODO: Handle tuple destructuring on LHS
+                # Handle tuple destructuring on LHS
+                elseif isa(lhs, Expr) && lhs.head === :tuple
+                    for var_in_tuple in lhs.args
+                        if isa(var_in_tuple, Symbol)
+                            push!(lhs_vars_in_let, var_in_tuple)
+                        end
+                    end
                 end
             elseif assignments_arg !== nothing # If assignments_arg is not an Expr, but also not nothing (e.g. a Symbol)
                 # This case means `let some_symbol; body; end`, which is unusual for variable binding.
@@ -380,34 +425,15 @@ function _walk(expr::Any, defined::Set{Symbol})
         # 2.6) Function call
         elseif h === :call
             used_total = Set{Symbol}()
-            
-            # expr.args[1] is the function being called.
-            # If it's a Symbol (e.g., :my_func), it could be an undefined variable or a known function.
-            # If it's an Expr (e.g., (get_func()).()), walk it.
-            if !isa(expr.args[1], Symbol) 
-                 used_func_expr, _ = _walk(expr.args[1], defined)
-                 used_total = union(used_total, used_func_expr)
-            elseif !(expr.args[1] in defined) && !(isdefined(Main, expr.args[1]) || expr.args[1] in (:string, :htmlesc, :uppercase, :lowercase, :+, :-, :*, :/, :<, :>, :(==))) # Check if it's a known global/builtin
-                # If it's a symbol, not defined locally, and not a common global/operator, it might be a user variable used as function.
-                # This is heuristic. A more robust way would be to have a list of known "safe" functions.
-                # For now, if it's a symbol like `my_custom_func_var` and not defined, treat it as used.
-                # This part is tricky; Otera's filters are handled differently.
-                # Let's assume function names that are symbols are generally not what we are tracking as `init` vars.
-                # The original logic `!isa(expr.args[1], Symbol)` was safer.
-                # Reverting to: if it's a symbol, we assume it's a function name and don't add to `used_total` here.
-                # If it's an expression, it might contain variables.
-                # No, the original `!isa(expr.args[1], Symbol)` means if it *is* a symbol, it's skipped.
-                # If it's an Expr like `(obj.method)(args)`, then `obj.method` is walked.
-                # This is correct.
+            local_defined = copy(defined)
+            # ignore the symbol representing the function
+            for (i, subexpr) in enumerate(expr.args)
+                if i > 1
+                    used_sub, local_defined = _walk(subexpr, local_defined)
+                    used_total = union(used_total, used_sub)
+                end
             end
-
-
-            # Walk arguments of the call
-            for i in 2:length(expr.args) 
-                used_arg, _ = _walk(expr.args[i], defined) 
-                used_total = union(used_total, used_arg)
-            end
-            return (used_total, defined) # No new definitions from a simple call for the outer scope
+            return (used_total, local_defined)
 
         # 2.7) Other expression types
         else

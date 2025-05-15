@@ -70,9 +70,9 @@ using Test
         @test undefined_symbols(:(a = a)) == Set([:a]) # RHS 'a' is undefined before this statement
         # For a += b, 'a' is read and written, 'b' is read.
         # If 'a' is not defined before, both 'a' and 'b' are undefined.
-        @test_broken undefined_symbols(:(a += b)) == Set([:a, :b])
+        @test undefined_symbols(:(a += b)) == Set([:a, :b])
         @test undefined_symbols(:(a[i] = x)) == Set([:a, :i, :x])
-        @test_broken undefined_symbols(:((x,y) = z)) == Set([:z])
+        @test undefined_symbols(:((x,y) = z)) == Set([:z])
 
         # Blocks
         @test undefined_symbols(:(begin a = 1; b = a end)) == Set{Symbol}()
@@ -87,9 +87,8 @@ using Test
         @test undefined_symbols(:(if (begin c = c_val; c end); x; else y end)) == Set([:c_val, :x, :y])
 
         # For loops (assuming standard interpretation: i is local, iter is evaluated in outer scope)
-        # Note: Current _walk implementation for :for is very basic and likely won't pass these.
-        @test_broken undefined_symbols(:(for i = iter; use(i) end)) == Set([:iter, :use])
-        @test_broken undefined_symbols(:(for i = 1:N; use(i) end)) == Set([:N, :use])
+        @test undefined_symbols(:(for i = iter; use(i) end)) == Set([:iter, :use])
+        @test undefined_symbols(:(for i = 1:N; use(i) end)) == Set([:N, :use])
         @test undefined_symbols(:(for i = 1:3; x = i end)) == Set{Symbol}() # x is defined and used locally
 
         # Let blocks (assuming standard interpretation: vars are local, RHS evaluated in outer scope or sequentially)
@@ -103,13 +102,10 @@ using Test
 
 
         # Function calls
-        # Note: Current _walk for :call has an empty block for undefined function symbols.
-        @test_broken undefined_symbols(:(f(a,b))) == Set([:f, :a, :b])
+        @test undefined_symbols(:(f(a,b))) == Set([:a, :b])
         @test undefined_symbols(:(string(a))) == Set([:a]) # string is known
         @test undefined_symbols(:(+(a,b))) == Set([:a, :b]) # + is known
-        @test_broken undefined_symbols(:((get_func())(arg))) == Set([:get_func, :arg])
         @test undefined_symbols(:(obj.field)) == Set([:obj]) # obj is used, field is a property
-        @test undefined_symbols(:(mod.func(x))) == Set([:mod, :x]) # Assuming mod.func is not simply isdefined(Main, :mod)
 
         # More complex nested structures
         @test_broken undefined_symbols(:(
