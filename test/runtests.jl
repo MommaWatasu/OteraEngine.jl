@@ -100,7 +100,6 @@ using Test
         # Test for "strict parallel RHS": y = x where x is from *outer* scope, not the x = 1 in the same let.
         @test undefined_symbols(:(let x = 1, y = x_outer; x + y end)) == Set([:x_outer])
 
-
         # Function calls
         @test undefined_symbols(:(f(a,b))) == Set([:a, :b])
         @test undefined_symbols(:(string(a))) == Set([:a]) # string is known
@@ -330,5 +329,16 @@ using Test
     end
     @test result == tmp(init = Dict(
             :names => ["gate", "horse", "watasu"],
+    ))
+
+    tmp = Template("named_tuple1.html")
+    open("named_tuple2.html", "r") do f
+        result = read(f, String)
+    end
+    job = (id=1, name="test1")
+    jobs = [(id=1, name="test1"), (id=2, name="test2")]
+    @test result == tmp(init = Dict(
+        :job1 => job,
+        :jobs => jobs,
     ))
 end

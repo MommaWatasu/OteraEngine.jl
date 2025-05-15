@@ -1,0 +1,16 @@
+<html>
+    <head>
+        <title>Document</title>
+    </head>
+    <body>
+        {{ job1.id }}
+
+        {% for job in jobs %}
+        {{ job.name }}
+        {% end %}
+
+        {% let job2 = jobs[1] %}
+        {{ job2.name }}
+        {% end %}
+    </body>
+</html>
